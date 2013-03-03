@@ -7,6 +7,7 @@ This template exists to make it easier for you to get started writing an officia
 
 ## Getting started
 It's usually pretty easy to add your own adapters for integrating with proprietary systems or existing open APIs.  For most things, it's as easy as `require('some-module')` and mapping the appropriate methods to match waterline semantics.  To get started:
+
 1. Fork this repository
 2. Set up your README and package.json file.  Sails.js adapter module names are of the form sails-*, where * is the name of the datastore or service you're integrating with.
 3. Build your adapter.
