@@ -2,15 +2,15 @@
 
 # BoilerplateAdapter
 
-A template for you to get started writing an official adapter for Sails.js.
+This template exists to make it easier for you to get started writing an official adapter for Sails.js.
+
 
 ## Getting started
-
+It's usually pretty easy to add your own adapters for integrating with proprietary systems or existing open APIs.  For most things, it's as easy as `require('some-module')` and mapping the appropriate methods to match waterline semantics.  To get started:
 1. Fork this repository
 2. Build your adapter.
 
 ## How to test your adapter
-
 1. Run `npm link` in this adapter's directory
 2. Clone the sails.js core and modify the tests to use your new adapter.
 3. Run `npm link sails-boilerplate`
@@ -24,18 +24,8 @@ A template for you to get started writing an official adapter for Sails.js.
 5. Mike will send you jelly beans.
 
 
-## About Sails.js
+## About Sails.js and Waterline
 http://SailsJs.com
-
-
-## About Waterline
-Waterline is a new kind of storage and retrieval engine.  It provides a uniform API for accessing stuff from different kinds of databases, protocols, and 3rd party APIs.  That means you write the same code to get users, whether they live in mySQL, LDAP, MongoDB, or Facebook.
-Waterline also comes with built-in transaction support, as well as a configurable environment setting. 
-> NOTE: Waterline is currently in unreleased alpha-- that means it's not production ready!  If you want to use waterline in a production app, please contribute.  Currentliy, the plan is for an open alpha release early next year (2013).  Thanks!
-You can learn more about
-
-*Waterline repo: https://github.com/balderdashy/sails-redis*
-
+Waterline is a new kind of storage and retrieval engine for Sails.js.  It provides a uniform API for accessing stuff from different kinds of databases, protocols, and 3rd party APIs.  That means you write the same code to get users, whether they live in mySQL, LDAP, MongoDB, or Facebook.
 
 ## Writing your own adapters
-It's easy to add your own adapters for integrating with proprietary systems or existing open APIs.  For most things, it's as easy as `require('some-module')` and mapping the appropriate methods to match waterline semantics.
