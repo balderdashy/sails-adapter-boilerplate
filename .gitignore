@@ -7,3 +7,4 @@ ssl
 .idea
 nbproject
 npm-debug.log
+lib/*

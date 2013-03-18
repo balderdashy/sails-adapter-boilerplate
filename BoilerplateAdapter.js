@@ -7,6 +7,8 @@ var async = require('async');
 var _ = require('underscore');
 _.str = require('underscore.string');
 
+var dbAdapter = require('./lib/riak-adapter')
+
 module.exports = (function() {
 
   var adapter = {
@@ -35,8 +37,8 @@ module.exports = (function() {
     defaults: {
 
       // For example:
-      // port: 3306,
-      // host: 'localhost'
+      port: 8098,
+      host: 'localhost',
 
       // If setting syncable, you should consider the migrate option, 
       // which allows you to set how the sync will be performed.
@@ -50,7 +52,6 @@ module.exports = (function() {
 
     // This method runs when a model is initially registered at server start time
     registerCollection: function(collection, cb) {
-
       cb();
     },
 
@@ -96,9 +97,7 @@ module.exports = (function() {
     // REQUIRED method if users expect to call Model.create() or any methods
     create: function(collectionName, values, cb) {
       // Create a single new model specified by values
-
-      // Respond with error or newly created model instance
-      cb(null, values);
+      dbAdapter.create(collectionName, values, cb)
     },
 
     // REQUIRED method if users expect to call Model.find(), Model.findAll() or related methods
@@ -106,11 +105,7 @@ module.exports = (function() {
     // but the core will take care of supporting all the different usages.
     // (e.g. if this is a find(), not a findAll(), it will only send back a single model)
     find: function(collectionName, options, cb) {
-
-      // ** Filter by criteria in options to generate result set
-
-      // Respond with an error or a *list* of models in result set
-      cb(null, []);
+      dbAdapter.find(collectionName, options, cb)
     },
 
     // REQUIRED method if users expect to call Model.update()

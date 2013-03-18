@@ -1,14 +1,14 @@
 {
-  "name": "sails-adapter-boilerplate",
+  "name": "sails-riak",
   "version": "0.0.1",
-  "description": "Boilerplate adapter for Sails.js",
+  "description": "Riak adapter for Sails.js",
   "main": "BoilerplateAdapter.js",
   "scripts": {
     "test": "echo \"Adapter should be tested using Sails.js core.\" && exit 1"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/balderdashy/sails-adapter-boilerplate.git"
+    "url": "https://github.com/andreifecioru/sails-adapter-boilerplate.git"
   },
   "keywords": [
     "orm",
@@ -17,7 +17,7 @@
     "sailsjs",
     "sails.js"
   ],
-  "author": "Your name here",
+  "author": "Andrei Fecioru",
   "license": "MIT",
   "readmeFilename": "README.md",
   "dependencies": {
