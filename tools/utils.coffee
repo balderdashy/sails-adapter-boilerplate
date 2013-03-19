@@ -137,5 +137,5 @@ deferred.monitor 30 * 1000, (err) ->
 Utils.deleteAllKeys(bucket)
     .then(
         (models) ->
-            console.log "Deleted #{models.length} DB entries."
+            console.log "Deleted #{models.length} DB entries. Andrei! "
     )
