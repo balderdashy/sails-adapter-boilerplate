@@ -88,7 +88,7 @@ class Utils
         .end()
 
 
-bucket = 'user'
+buckets = ['test_user', 'test_schema', 'test_index', 'user']
 settle_time = 5 * 1000
 
 deferred.monitor 30 * 1000, (err) ->
@@ -134,8 +134,19 @@ deferred.monitor 30 * 1000, (err) ->
 #    )
 #    .end()
 
-Utils.deleteAllKeys(bucket)
-    .then(
-        (models) ->
-            console.log "Deleted #{models.length} DB entries. Andrei! "
+deferred.map(buckets,
+    (bucket) ->
+        Utils.deleteAllKeys(bucket)
+            .then(
+                (models) ->
+                    console.log "Deleted #{models.length} DB entries in the #{bucket} bucket."
+            )
     )
+    .then(
+        () ->
+            console.log 'Done.'
+    ,
+    (err) ->
+        cb err
+    )
+    .end()

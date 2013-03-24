@@ -5,14 +5,23 @@ RiakDB = require '../lib/riak-db'
 
 riakDB = new RiakDB('test')
 
-riakDB.defineSchema('user', { 'value': 1 })
+models = [
+    {name: "Andrei", id:1}
+    {name: "Mihai", id:2}
+    {name: "Radu", id:3}
+]
+
+riakDB.save('user', models)
     .then(
-        (definition) ->
-            console.log "Schema defined: #{JSON.stringify definition, null, ''}"
-            promisify(riakDB.describeSchema('user'))
+        (models) ->
+            console.log "#{models.length} models saved."
+            riakDB.getMaxIndex('user')
     )
     .then(
-        (definition) ->
-            console.log "Schema description: #{JSON.stringify definition, null, ''}"
+        (models) ->
+            console.log "Models --- : #{JSON.stringify models, null, ''}"
+        ,
+        (err) ->
+            console.log "ERROR: #{JSON.stringify err.message}"
     )
     .end()

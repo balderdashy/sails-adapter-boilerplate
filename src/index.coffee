@@ -4,6 +4,7 @@
 ############################################################
 
 deferred = require 'deferred'
+promisify = deferred.promisify
 async = require 'async'
 _ = require 'underscore'
 _.str = require 'underscore.string'
@@ -12,7 +13,7 @@ RiakDB = require './riak-db'
 
 module.exports = do () ->
     # Load criteria module
-    getMatchIndices = require'./criteria.js'
+    getMatchIndices = require './criteria.js'
 
     # Maintain a list of active DB objects
     connections = { }
@@ -26,6 +27,7 @@ module.exports = do () ->
         commitLog:
              identity: 'commit_log'
              adapter: 'sails-riak'
+             dbTag: 'commit_log'
 
 
         # Default configuration for collections
@@ -44,15 +46,35 @@ module.exports = do () ->
             collectionName = collection.identity
 
             afterwards = () =>
-                connections[collectionName].db.describeSchema(collectionName)
+                db = connections[collectionName].db
+                db.describeSchema(collectionName)
                     .then(
                         (schema) ->
-                            console.log "Schema description: #{JSON.stringify schema, null, ''}"
-                            cb null, schema.attributes
+                            console.log "AUTO-INCREMENT: #{JSON.stringify schema.autoIncrement}"
+                            deferred schema.autoIncrement
                     )
+                    .then(
+                        (autoIncrement) =>
+                            # Check that the resurrected auto-increment value is valid
+                            @find collectionName, {
+                                    where :
+                                        id: autoIncrement
+                                }, (err, models) ->
+                                    if err?
+                                        cb err
+                                    else
+                                        if models?.length?
+                                            db.getMaxIndex(collectionName)
+                                                .then(
+                                                    (models) ->
+                                                        console.log "DONE!!"
+                                                )
+                    )
+                    .end()
 
                 @getAutoIncrementAttribute collectionName, (err, aiAttr) ->
-                    console.log "AUTO-INCREMENT attr: #{JSON.stringify arguments, null, '  '}"
+                    # Get the current auto-increment value for this collection
+                    # Check that the resurrected auto-increment value is valid
 
             collectionName = collection.identity;
 
@@ -96,8 +118,7 @@ module.exports = do () ->
             # Write schema objects
             connections[collectionName].db.defineSchema(collectionName, definition)
                 .then(
-                    (schema) ->
-                        console.log "Schema defined: #{JSON.stringify schema, null, ''}"
+                    () ->
                         cb()
                     ,
                     (err) ->
@@ -111,11 +132,17 @@ module.exports = do () ->
             connections[collectionName].db.describeSchema(collectionName)
                 .then(
                     (schema) ->
-                        console.log "Schema description: #{JSON.stringify schema, null, ''}"
+                        #console.log "Schema description: #{JSON.stringify schema, null, ' '}"
                         cb null, schema?.attributes
                     ,
                     (err) ->
-                        cb err
+                        console.log "Schema description error: #{JSON.stringify err, null, ''}"
+                        if err.statusCode is 404
+                            # schema not found - maybe it was not defined first.
+                            cb null, null
+                        else
+                            # something bad happened - escalate the error
+                            cb null, err
                 )
 
 
@@ -133,17 +160,64 @@ module.exports = do () ->
         #     cb();
 
 
-        # REQUIRED method if users expect to call Model.create() or any methods
+        # Create one or more new models in the collection
         create: (collectionName, values, cb) ->
-            # Create a single new model specified by values
-            dbAdapter.create collectionName, values, cb
+            console.log "CREATE: #{collectionName} => #{JSON.stringify values, null, ''}"
+
+            values = _.clone(values) || {}
+            db = connections[collectionName].db
+
+            # Lookup schema & status so we know all of the attribute names and the current auto-increment value
+            db.describeSchema(collectionName)
+                .then(
+                    (schema) ->
+                        cb null, schema.attributes
+                        deferred schema
+                    ,
+                    (err) ->
+                        console.log "ERR: #{JSON.stringify err, null, '  '}"
+                        cb badSchemaError collectionName, db
+                )
+                .then(
+                    (schema) ->
+                        doAutoIncrement(collectionName, schema.attributes, values)
+                            .then(
+                                (values) ->
+                                    console.log "Values: #{JSON.stringify values, null, '  '}"
+                                ,
+                                (err) ->
+                                    console.log "Error: #{JSON.stringify err, null, '  '}"
+                                    cb err
+                            )
+                )
+                .end()
+
 
 
         # Find one or more models from the collection
         # using where, limit, skip, and order
         # In where: handle `or`, `and`, and `like` queries
         find: (collectionName, options, cb) ->
-            data = connections[collectionName].db.get(collectionName) # TODO: from here
+            console.log "----> FIND: #{collectionName}"
+
+            connections[collectionName].db.getAllModelsInCollection(collectionName)
+                .then(
+                    (models) ->
+                        console.log "<---- FIND: #{models.length}"
+
+                        # Get indices from original data which match, in order
+                        matchIndices = getMatchIndices models, options
+                        resultSet = []
+
+                        _.each matchIndices, (matchIndex) ->
+                            resultSet.push _.clone(models[matchIndex])
+
+                        cb null, resultSet
+                    ,
+                    (err) ->
+                        console.log "FIND: ERROR"
+                        cb err
+                )
 
 
         # REQUIRED method if users expect to call Model.update()
@@ -213,6 +287,32 @@ module.exports = do () ->
     ############## Private Methods ##########################################
     ##############                 ##########################################
     connect = (collection, cb) ->
-        cb null, { db: new RiakDB(collection.logTag) }
+        console.log "CONNECTING: #{JSON.stringify collection.dbTag, null, '  '}"
+        cb null, { db: new RiakDB(collection.dbTag) }
+
+
+    # Look for auto-increment field, increment counter accordingly, and return refined value set
+    doAutoIncrement = promisify (collectionName, attributes, values, cb) ->
+
+        # Determine the attribute names which will be included in the created object
+        attrNames = _.keys _.extend({}, attributes, values)
+
+        console.log "ATTR-NAMES: #{JSON.stringify attrNames, null, '  '}"
+
+        _.each attrNames, (attrName) ->
+            # But only if the given auto-increment value
+            # was NOT actually specified in the value set,
+            if (_.isObject(attributes[attrName]) && attributes[attrName].autoIncrement)
+                if (!values[attrName])
+                    # increment AI fields in values set
+                    cb Error("DON'T KNOW WHAT TO DO...")
+
+        cb null, values
+
+
+
+    badSchemaError = (collectionName, db) ->
+        new Error "Cannot get schema for collection: #{collectionName} using schema prefix: #{db.tag}"
+
 
     return adapter
