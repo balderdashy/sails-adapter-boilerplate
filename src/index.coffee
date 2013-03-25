@@ -56,6 +56,7 @@ module.exports = do () ->
                     .then(
                         (autoIncrement) =>
                             # Check that the resurrected auto-increment value is valid
+
                             @find collectionName, {
                                     where :
                                         id: autoIncrement
@@ -66,15 +67,11 @@ module.exports = do () ->
                                         if models?.length?
                                             db.getMaxIndex(collectionName)
                                                 .then(
-                                                    (models) ->
+                                                    (maxIndex) ->
                                                         console.log "DONE!!"
                                                 )
                     )
                     .end()
-
-                @getAutoIncrementAttribute collectionName, (err, aiAttr) ->
-                    # Get the current auto-increment value for this collection
-                    # Check that the resurrected auto-increment value is valid
 
             collectionName = collection.identity;
 

@@ -88,7 +88,6 @@ class Utils
         .end()
 
 
-buckets = ['test_user', 'test_schema', 'test_index', 'user']
 settle_time = 5 * 1000
 
 deferred.monitor 30 * 1000, (err) ->

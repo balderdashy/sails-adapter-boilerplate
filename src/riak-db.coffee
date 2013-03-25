@@ -9,29 +9,26 @@ dbRemovePromise = _.bind promisify(db.remove), db
 dbSavePromise = _.bind promisify(db.save), db
 dbGetPromise = _.bind promisify(db.get), db
 dbKeyCountPromise = _.bind promisify(db.count), db
+dbGetAll= _.bind promisify(db.getAll), db
+dbBucketsPromise = _.bind promisify(db.buckets), db
 
 
 module.exports = class RiakDB
 
     constructor: (@tag) ->
 
-    getAllModelsInCollection: promisify (collectionName, cb) ->
-        console.log "CHECK 0"
+    getAll: promisify (collectionName, cb) ->
         unless collectionName?
             cb new Error("RiakDB#getAllModlesInCollection - Collection name must be provided.")
         else
-            console.log "CHECK 0.0"
-            db.mapreduce
-                .add("#{@tag}_collectionName")
-                .map('Riak.mapValuesJson')
-                .run (err, models) ->
-                    console.log "CHECK 0.1"
-                    if err?
-                        console.log "CHECK 1"
+            dbGetAll("#{@tag}_#{collectionName}")
+                .then(
+                    (result) ->
+                        cb null, result.shift()
+                    ,
+                    (err) ->
                         cb err
-                    else
-                        console.log "CHECK 2"
-                        cb null, models
+                )
 
 
     getMaxIndex: promisify (collectionName, cb) ->
@@ -41,29 +38,29 @@ module.exports = class RiakDB
             db.mapreduce
                 .add("#{@tag}_#{collectionName}")
                 .map(
-                    (v) ->
-                        [(Riak.mapValuesJson(v)[0]).id ]
+                    (riakObj) ->
+                        [(Riak.mapValuesJson(riakObj)[0]).id ]
                 )
                 .reduce(
                     (v) ->
                         [Math.max.apply(null, v)]
                 )
-                .run (err, models) ->
+                .run (err, maxIndex) ->
                     if err?
                         cb err
                     else
-                        cb null, models
+                        cb null, maxIndex[0];
 
 
     save: promisify (collectionName, models, cb) ->
-        unless collectionName?
+        if !collectionName? or !models?
             cb new Error("RiakDB#getAllModlesInCollection - Collection name must be provided.")
         else
             models = [models] if !(_.isArray models)
-            deferred.map(models)
-                .then(
-                    (model) ->
-                        dbSavePromise("#{@tag}_#{collectionName}", model.id, model, { returnbody: true })
+            deferred.map(models,
+                    (model) =>
+                        bucket = "#{@tag}_#{collectionName}"
+                        dbSavePromise(bucket, model.id, model, { returnbody: true })
                             .then(
                                 (result) ->
                                     result.shift()
@@ -77,6 +74,34 @@ module.exports = class RiakDB
                             cb null, savedModels
                 ).end()
 
+
+
+
+    get: promisify (collectionName, key, cb) ->
+        if !collectionName? or !key?
+            cb new Error("RiakDB#get - The collection name and the key must be provided.")
+        else
+            dbGetPromise("#{@tag}_#{collectionName}", key, {})
+                .then(
+                    (result) ->
+                        cb null, result.shift
+                    ,
+                    (err) ->
+                        if err.statusCode == 404
+                            cb null, []
+                        else
+                            cb err
+                )
+
+    getCollections: promisify (cb) ->
+        dbBucketsPromise()
+            .then(
+                (result) ->
+                    cb null, result.shift()
+                ,
+                (err) ->
+                    cb err
+            )
 
     defineSchema: promisify (collectionName, definition, cb) ->
         unless (collectionName? && definition?)
