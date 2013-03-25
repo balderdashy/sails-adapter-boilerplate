@@ -1,47 +1,34 @@
 deferred = require 'deferred'
 promisify = deferred.promisify
+_ = require 'underscore'
 
 RiakDB = require '../lib/riak-db'
 
 riakDB = new RiakDB('test')
 
-settle_time = 2;
-
-models = [
-    {name: "Andrei", id:1}
-    {name: "Mihai", id:2}
-    {name: "Radu", id:3}
-    {name: "Gigi", id:4}
-]
-
-riakDB.save('user', models)
-    .then(
-        (savedModels) ->
-            console.log "#{savedModels.length} models saved."
-            riakDB.getAll 'user'
-    )
-    .then(
+riakDB.getAllModels('user')
+    .end(
         (models) ->
-            console.log "Models: #{models.length}"
-            riakDB.getMaxIndex 'user'
+            console.log "#{JSON.stringify models, null, '  '}"
     )
-    .then(
-        (maxIndex) ->
-            console.log "Max index: #{maxIndex}"
-            riakDB.get 'user', "5"
-    )
-    .then(
-        (model) ->
-            console.log "Model: #{JSON.stringify model}"
-            riakDB.getCollections()
-    )
-    .then(
-        (buckets) ->
-            console.log "Buckets: #{JSON.stringify buckets}"
-        ,
-        (err) ->
-            console.log "ERROR: #{JSON.stringify err}"
-
-    )
-    .end()
-
+#riakDB.getCollections()
+#    .then(
+#        (collections) ->
+#            console.log "Available collections: #{JSON.stringify collections}"
+#
+#            deferred.map(collections,
+#                (collection) ->
+#                    riakDB.deleteAll(collection)
+#                        .then(
+#                            (deletedKeys) ->
+#                                {collection: collection, keys: deletedKeys}
+#                        )
+#            )
+#    )
+#    .end(
+#        (data) ->
+#            console.log "Keys deleted: #{JSON.stringify data}"
+#        ,
+#        (err) ->
+#            console.log "ERROR: #{JSON.stringify err, null, '  '}"
+#    )
