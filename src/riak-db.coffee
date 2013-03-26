@@ -1,7 +1,7 @@
 db = require('riak-js').getClient()
 _ = require 'underscore'
-_.str = require 'underscore.string'
 
+_.str = require 'underscore.string'
 _.mixin _.str.exports()
 
 deferred = require 'deferred'
@@ -19,14 +19,77 @@ module.exports = class RiakDB
 
     constructor: (@tag) ->
 
+    createModelLock: {}
+
+    create: promisify (collectionName, model, cb) ->
+        if !collectionName? or !model?
+            return cb new Error("RiakDB#create - Collection name and model definition must be provided.")
+
+        if @createModelLock[collectionName]
+            setTimeout () =>
+                # the lock is taken - try again later
+                @create collectionName, model, cb
+            , 100
+
+        else
+            @createModelLock[collectionName] = true
+            # Lookup collection schema so we know all of the attribute
+            # names and the current auto-increment value
+            @describeSchema(collectionName)
+                .then(
+                    (schema) =>
+                        unless schema?
+                            throw new Error("Cannot get schema for collection: #{collectionName} for DB instance: #{@tag}")
+
+                        # Determine the attribute names which will be included in the created object
+                        attrNames = _.keys _.extend({}, schema.attributes, model)
+
+                        for attrName in attrNames
+                            # But only if the given auto-increment value
+                            # was NOT actually specified in the value set,
+                            if (_.isObject(schema.attributes[attrName]) && schema.attributes[attrName].autoIncrement)
+                                if (!model[attrName])
+                                    # increment AI fields in values set
+                                    model[attrName] = schema.autoIncrement
+                                else
+                                    if parseInt(model[attrName]) > schema.autoIncrement
+                                        schema.autoIncrement = parseInt(model[attrName])
+                                break
+
+                        # update the collection schema with the new AI value
+                        schema.autoIncrement += 1
+                        @defineSchema(collectionName, schema)
+                )
+                .then(
+                    (schema) =>
+                        key = schema.autoIncrement - 1
+                        @save(collectionName, key, model)
+                )
+                .end(
+                    (model) =>
+                        @createModelLock[collectionName] = false
+                        cb null, model
+                    ,
+                    (err) =>
+                        @createModelLock[collectionName] = false
+                        cb err
+                )
+
+
     save: promisify (collectionName, key, model, cb) ->
         if !collectionName? or !key? or !model?
             cb new Error("RiakDB#save - Collection name, key and model definition must be provided.")
         else
+            model.storedFunctions = {}
+            if collectionName is 'commit_log'
+                for own prop of model
+                    if _.isFunction(model[prop])
+                        model.storedFunctions[prop] = model[prop].toString()
+
             dbSavePromise("#{@tag}_#{collectionName}", key, model, { returnbody: true })
                 .then(
-                    (result) ->
-                        cb null, result.shift()
+                    (result) =>
+                        cb null, @reconstructModelFunctions result.shift()
                     ,
                     (err) ->
                         cb err
@@ -39,8 +102,8 @@ module.exports = class RiakDB
         else
             dbGetPromise("#{@tag}_#{collectionName}", key, {})
                 .then(
-                    (result) ->
-                        cb null, model: result.shift()
+                    (result) =>
+                        cb null, model: @reconstructModelFunctions result.shift()
                     ,
                     (err) ->
                         if err.statusCode == 404
@@ -92,7 +155,7 @@ module.exports = class RiakDB
 
     getCollections: promisify (cb) ->
         dbBucketsPromise()
-            .then(
+            .end(
                 (result) =>
                     collections = []
 
@@ -130,7 +193,10 @@ module.exports = class RiakDB
             dbGetAll("#{@tag}_#{collectionName}")
                 .then(
                     (result) =>
-                        cb null, result.shift()
+                        models = []
+                        for model in result.shift()
+                            models.push @reconstructModelFunctions model
+                        cb null, models
                     ,
                     (err) ->
                         cb err
@@ -162,10 +228,10 @@ module.exports = class RiakDB
         unless (collectionName? && definition?)
             cb new Error('RiakDB#defineSchema - Collection name and schema definition must be provided.')
         else
-            dbSavePromise("#{@tag}_schema", collectionName, definition, {})
+            dbSavePromise("#{@tag}_schema", collectionName, definition, { returnbody: true })
                 .then(
-                    () ->
-                        cb()
+                    (result) =>
+                        cb null, result.shift()
                     ,
                     (err) ->
                         cb err
@@ -204,5 +270,79 @@ module.exports = class RiakDB
                         else
                             cb err
                 )
+
+    resetDB: promisify (cb) ->
+        dbBucketsPromise()
+            .end(
+                (result) ->
+                    buckets = result.shift()
+                    console.log "Bucket list: #{JSON.stringify buckets}"
+                    deferred.map(buckets,
+                        (bucket) ->
+                            (promisify((bucket, cb) ->
+                                keyStream = db.keys bucket, { keys: 'stream' }, undefined
+
+                                keyList = []
+                                keyStream.on 'keys', (keys) ->
+                                    for key in keys
+                                        keyList.push key
+
+                                keyStream.on 'end', () ->
+                                    cb null, keyList
+
+                                keyStream.start()
+                            )(bucket))
+                            .then(
+                                (keys) =>
+                                    bucketKeyPairs = []
+                                    for key in keys
+                                        bucketKeyPairs.push {bucket: bucket, key: key}
+
+                                    deferred bucketKeyPairs
+                            )
+                    )
+                    .then(
+                        (bucketKeyPairSets) ->
+                            bucketKeyPairs = _.flatten bucketKeyPairSets
+                            deferred.map(bucketKeyPairs,
+                                (bucketKeyPair) ->
+                                    dbRemovePromise(bucketKeyPair.bucket, bucketKeyPair.key)
+                                        .then(
+                                            (result) ->
+                                                deferred {bucket: bucketKeyPair.bucket, key: result[1].key}
+                                        )
+                            )
+                    )
+                    .then(
+                        (bucketKeyPairs) ->
+                            cb null, bucketKeyPairs
+                    )
+                ,
+                (err) ->
+                    cb err
+            )
+
+    reconstructModelFunctions: (model) ->
+        strToFunction = (funcString) ->
+            startBody = funcString.indexOf('{') + 1
+            endBody = funcString.lastIndexOf('}')
+            startArgs = funcString.indexOf('(') + 1
+            endArgs = funcString.indexOf(')')
+
+            new Function(funcString.substring(startArgs, endArgs),
+                funcString.substring(startBody, endBody))
+
+        for own funcName of model.storedFunctions
+#            model[funcName] = strToFunction model.storedFunctions[funcName]
+            eval("model[funcName] = #{model.storedFunctions[funcName]}")
+            console.log "RECONSTRUCTING: #{model[funcName]}"
+
+        model
+
+
+
+
+
+
 
 

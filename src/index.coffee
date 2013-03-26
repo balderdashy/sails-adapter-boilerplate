@@ -31,7 +31,9 @@ module.exports = do () ->
         commitLog:
              identity: 'commit_log'
              adapter: 'sails-riak'
-             dbTag: 'commit_log'
+             dbTag: 'transactions'
+             migrate: 'drop'
+
 
 
         # Default configuration for collections
@@ -89,8 +91,6 @@ module.exports = do () ->
                     )
                     .end(
                         (updatedSchema) ->
-                            if updatedSchema?
-                                console.log "Updated stale auto-increment for collection: #{collectionName}"
                             cb()
                         ,
                         (err) ->
@@ -128,13 +128,15 @@ module.exports = do () ->
 
         # Create a new collection
         define: (collectionName, definition, cb) ->
+            db = connections[collectionName].db
+
             definition = _.extend {
                 # Reset autoIncrement counter
                 autoIncrement: 1
             }, definition
 
             # Write schema objects
-            connections[collectionName].db.defineSchema(collectionName, definition)
+            db.defineSchema(collectionName, definition)
                 .then(
                     () ->
                         cb()
@@ -146,7 +148,9 @@ module.exports = do () ->
         # Fetch the schema for a collection
         # (contains attributes and autoIncrement value)
         describe: (collectionName, cb) ->
-            connections[collectionName].db.describeSchema(collectionName)
+            db = connections[collectionName].db
+
+            db.describeSchema(collectionName)
                 .then(
                     (schema) ->
                         cb null, schema?.attributes
@@ -154,7 +158,7 @@ module.exports = do () ->
                     (err) ->
                         if err.statusCode is 404
                             # schema not found - maybe it was not defined first.
-                            cb null, null
+                            cb()
                         else
                             # something bad happened - escalate the error
                             cb null, err
@@ -190,35 +194,12 @@ module.exports = do () ->
 
         # Create one or more new models in the collection
         create: (collectionName, values, cb) ->
-            values = _.clone(values) || {}
             db = connections[collectionName].db
+            values = _.clone(values) || {}
 
-            if _(values.name).startsWith "parallel_test user"
-                console.log "CREATE #{JSON.stringify values}"
-
-            # Lookup collection schema so we know all of the attribute
-            # names and the current auto-increment value
-            db.describeSchema(collectionName)
-                .then(
-                    (schema) ->
-                        if schema?
-                            deferred schema
-                        else
-                            throw badSchemaError(collectionName, db)
-                )
-                .then(
-                    (schema) ->
-                        doAutoIncrement(db, collectionName, schema, values)
-                            .then(
-                                (data) ->
-                                    model = data.values
-                                    key = data.schema.autoIncrement
-                                    db.save(collectionName, key, model)
-                            )
-                )
+            db.create(collectionName, values)
                 .end(
                     (model) ->
-                        console.log "CREATE - Saved model: #{JSON.stringify model}"
                         cb null, model
                     ,
                     (err) ->
@@ -232,21 +213,27 @@ module.exports = do () ->
         # In where: handle `or`, `and`, and `like` queries
         find: (collectionName, options, cb) ->
             db = connections[collectionName].db
-            db.getAllModels(collectionName)
-                .end(
-                    (models) ->
-                        # Get indices from original data which match, in order
-                        matchIndices = getMatchIndices models, options
-                        resultSet = []
 
-                        for matchIndex in matchIndices
-                            resultSet.push _.clone(models[matchIndex])
-
-                        cb null, resultSet
-                    ,
-                    (err) ->
+            @getAutoIncrementAttribute collectionName,
+                (err, aiAttr) ->
+                    if err?
                         cb err
-                )
+                    else
+                        db.getAllModels(collectionName)
+                            .end(
+                                (models) ->
+                                    # Get indices from original data which match, in order
+                                    matchIndices = getMatchIndices models, options
+
+                                    resultSet = []
+                                    for matchIndex in matchIndices
+                                        resultSet.push _.clone(models[matchIndex])
+
+                                    cb null, resultSet
+                                ,
+                                (err) ->
+                                    cb err
+                            )
 
 
         # Update one or more models in the collection
@@ -286,41 +273,59 @@ module.exports = do () ->
         destroy: (collectionName, options, cb) ->
             db = connections[collectionName].db
             @getAutoIncrementAttribute collectionName,
-            (err, aiAttr) ->
-                if err?
-                    cb err
-                else
-                    db.getAllModels(collectionName)
-                        .then(
-                            (models) ->
-                                # Query result set using options
-                                matchIndices = getMatchIndices models, options
+                (err, aiAttr) ->
+                    if err?
+                        cb err
+                    else
+                        db.getAllModels(collectionName)
+                            .then(
+                                (models) ->
+                                    # Query result set using options
+                                    matchIndices = getMatchIndices models, options
 
-                                # Replace data collection and go back
-                                deferred.map(matchIndices,
-                                    (matchIndex) ->
-                                        db.delete(collectionName, models[matchIndex][aiAttr])
-                                )
-                        )
-                        .end(
-                            (deletedKeys) ->
-                                console.log "DESTROY: Deleted keys: #{JSON.stringify deletedKeys}"
-                                cb null
-                            ,
-                            (err) ->
-                                cb err
-                        )
+                                    # Replace data collection and go back
+                                    deferred.map(matchIndices,
+                                        (matchIndex) ->
+                                            db.delete(collectionName, models[matchIndex][aiAttr])
+                                    )
+                            )
+                            .end(
+                                (deletedKeys) ->
+                                    cb null
+                                ,
+                                (err) ->
+                                    cb err
+                            )
 
 
-        # REQUIRED method if users expect to call Model.stream()
+        # Stream models from the collection
+        # using where, limit, skip, and order
+        # In where: handle `or`, `and`, and `like` queries
         stream: (collectionName, options, stream) ->
-            console.log "STREAMING"
-            # options is a standard criteria/options object (like in find)
+            db = connections[collectionName].db
 
-            # stream.write() and stream.end() should be called.
-            # for an example, check out:
-            # https://github.com/balderdashy/sails-dirty/blob/master/DirtyAdapter.js#L247
-            cb Error("NOT_IMPLEMENTED")
+            @getAutoIncrementAttribute collectionName,
+                (err, aiAttr) ->
+                    if err?
+                        cb err
+                    else
+                        db.getAllModels(collectionName)
+                            .end(
+                                (models) ->
+                                    # Get indices from original data which match, in order
+                                    matchIndices = getMatchIndices models, options
+
+                                    # Write out the stream
+                                    for matchIndex in matchIndices
+                                        stream.write _.clone(models[matchIndex])
+
+                                    # Finish stream
+                                    stream.end()
+                                ,
+                                (err) ->
+                                    # Finish stream
+                                    stream.end()
+                            )
 
 
         ############################################################
@@ -377,38 +382,6 @@ module.exports = do () ->
     ##############                 ##########################################
     connect = (collection, cb) ->
         cb null, { db: new RiakDB(collection.dbTag) }
-
-
-    # Look for auto-increment field, increment counter accordingly, and return refined value set
-    doAutoIncrement = promisify (db, collectionName, schema, values, cb) ->
-        # Determine the attribute names which will be included in the created object
-        attrNames = _.keys _.extend({}, schema.attributes, values)
-
-        _.each attrNames, (attrName) ->
-            # But only if the given auto-increment value
-            # was NOT actually specified in the value set,
-            if (_.isObject(schema.attributes[attrName]) && schema.attributes[attrName].autoIncrement)
-                if (!values[attrName])
-                    # increment AI fields in values set
-                    values[attrName] = schema.autoIncrement
-
-                    # update the collection schema with the new AI value
-                    schema.autoIncrement += 1
-                    db.defineSchema(collectionName, schema)
-                        .then(
-                            () ->
-                                # do nothing
-                        ,
-                        (err) ->
-                            cb err
-                        )
-
-        cb null, {schema: schema, values: values}
-
-
-
-    badSchemaError = (collectionName, db) ->
-        new Error "Cannot get schema for collection: #{collectionName} for DB instance: #{db.tag}"
 
 
     return adapter
