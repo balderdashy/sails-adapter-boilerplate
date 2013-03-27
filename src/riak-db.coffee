@@ -19,17 +19,17 @@ module.exports = class RiakDB
 
     constructor: (@tag) ->
 
-    createModelLock: {}
+    createModelQueue: {}
 
     create: promisify (collectionName, model, cb) ->
         if !collectionName? or !model?
             return cb new Error("RiakDB#create - Collection name and model definition must be provided.")
 
-        if @createModelLock[collectionName]
-            setTimeout () =>
-                # the lock is taken - try again later
-                @create collectionName, model, cb
-            , 100
+        drain = (collectionName) ->
+            re
+
+        @createModelLock[collectionName] = {working: false, queue: [] } unless @createModelLock[collectionName]?
+        @createModelLock[collectionName].queue.push model
 
         else
             @createModelLock[collectionName] = true
@@ -80,16 +80,10 @@ module.exports = class RiakDB
         if !collectionName? or !key? or !model?
             cb new Error("RiakDB#save - Collection name, key and model definition must be provided.")
         else
-            model.storedFunctions = {}
-            if collectionName is 'commit_log'
-                for own prop of model
-                    if _.isFunction(model[prop])
-                        model.storedFunctions[prop] = model[prop].toString()
-
             dbSavePromise("#{@tag}_#{collectionName}", key, model, { returnbody: true })
                 .then(
                     (result) =>
-                        cb null, @reconstructModelFunctions result.shift()
+                        cb null, result.shift()
                     ,
                     (err) ->
                         cb err
@@ -103,7 +97,7 @@ module.exports = class RiakDB
             dbGetPromise("#{@tag}_#{collectionName}", key, {})
                 .then(
                     (result) =>
-                        cb null, model: @reconstructModelFunctions result.shift()
+                        cb null, result.shift()
                     ,
                     (err) ->
                         if err.statusCode == 404
@@ -193,10 +187,7 @@ module.exports = class RiakDB
             dbGetAll("#{@tag}_#{collectionName}")
                 .then(
                     (result) =>
-                        models = []
-                        for model in result.shift()
-                            models.push @reconstructModelFunctions model
-                        cb null, models
+                        cb null, result.shift()
                     ,
                     (err) ->
                         cb err
@@ -321,24 +312,6 @@ module.exports = class RiakDB
                 (err) ->
                     cb err
             )
-
-    reconstructModelFunctions: (model) ->
-        strToFunction = (funcString) ->
-            startBody = funcString.indexOf('{') + 1
-            endBody = funcString.lastIndexOf('}')
-            startArgs = funcString.indexOf('(') + 1
-            endArgs = funcString.indexOf(')')
-
-            new Function(funcString.substring(startArgs, endArgs),
-                funcString.substring(startBody, endBody))
-
-        for own funcName of model.storedFunctions
-#            model[funcName] = strToFunction model.storedFunctions[funcName]
-            eval("model[funcName] = #{model.storedFunctions[funcName]}")
-            console.log "RECONSTRUCTING: #{model[funcName]}"
-
-        model
-
 
 
 

@@ -27,13 +27,14 @@ module.exports = do () ->
         syncable: true
 
 
-        # Enable transactions by allowing Riak to create a commitLog
+        # Enable transactions by allowing Riak to create a
+        # bucket for commitLog entries
         commitLog:
              identity: 'commit_log'
              adapter: 'sails-riak'
              dbTag: 'transactions'
              migrate: 'drop'
-
+             funcTable: {}
 
 
         # Default configuration for collections
@@ -197,15 +198,45 @@ module.exports = do () ->
             db = connections[collectionName].db
             values = _.clone(values) || {}
 
-            db.create(collectionName, values)
-                .end(
-                    (model) ->
-                        cb null, model
-                    ,
-                    (err) ->
-                        cb err
-                )
+            console.log "----> Create #{JSON.stringify values}"
 
+            promisify((cb) =>
+                # We are dealing with a commit-log entry, and we need to keep track of the
+                # callback functions associated with the lock (these cannot be persisted in
+                # the Riak data store).
+                if collectionName is @commitLog.identity
+                    @saveLockMethods(values)
+                        .end(
+                            (values) ->
+                                cb null, values
+                            ,
+                            (err) ->
+                                cb err
+                        )
+                else
+                    cb null, values
+            )()
+            .then(
+                (values) =>
+                    db.create(collectionName, values)
+                        .then(
+                            (model) =>
+                                if collectionName is @commitLog.identity
+                                    # We are dealing with a commit-log entry
+                                    # re-attatch the callback methods associated to the lock
+                                    @restoreLockMethods model
+                                else
+                                    deferred model
+                        )
+            )
+            .end(
+                (model) ->
+                    console.log "<---- Create #{JSON.stringify model}"
+                    cb null, model
+                ,
+                (err) ->
+                    cb err
+            )
 
 
         # Find one or more models from the collection
@@ -214,31 +245,39 @@ module.exports = do () ->
         find: (collectionName, options, cb) ->
             db = connections[collectionName].db
 
-            @getAutoIncrementAttribute collectionName,
-                (err, aiAttr) ->
-                    if err?
-                        cb err
-                    else
-                        db.getAllModels(collectionName)
-                            .end(
-                                (models) ->
-                                    # Get indices from original data which match, in order
-                                    matchIndices = getMatchIndices models, options
+            db.getAllModels(collectionName)
+                .then(
+                    (models) =>
+                        # Get indices from original data which match, in order
+                        matchIndices = getMatchIndices models, options
 
-                                    resultSet = []
-                                    for matchIndex in matchIndices
-                                        resultSet.push _.clone(models[matchIndex])
+                        resultSet = []
+                        for matchIndex in matchIndices
+                            resultSet.push _.clone(models[matchIndex])
 
-                                    cb null, resultSet
-                                ,
-                                (err) ->
-                                    cb err
+                        if collectionName is @commitLog.identity
+                            # We are dealing with a commit-log entry
+                            # re-attatch the callback methods associated to the lock
+                            deferred.map(resultSet,
+                                (model) =>
+                                    @restoreLockMethods model
                             )
+                        else
+                            deferred resultSet
+                )
+                .end(
+                    (models) ->
+                        cb null, models
+                    ,
+                    (err) ->
+                        cb err
+                )
 
 
         # Update one or more models in the collection
         update: (collectionName, options, values, cb) ->
             db = connections[collectionName].db
+
             @getAutoIncrementAttribute collectionName,
                 (err, aiAttr) ->
                     if err?
@@ -304,28 +343,23 @@ module.exports = do () ->
         stream: (collectionName, options, stream) ->
             db = connections[collectionName].db
 
-            @getAutoIncrementAttribute collectionName,
-                (err, aiAttr) ->
-                    if err?
-                        cb err
-                    else
-                        db.getAllModels(collectionName)
-                            .end(
-                                (models) ->
-                                    # Get indices from original data which match, in order
-                                    matchIndices = getMatchIndices models, options
+            db.getAllModels(collectionName)
+                .end(
+                    (models) ->
+                        # Get indices from original data which match, in order
+                        matchIndices = getMatchIndices models, options
 
-                                    # Write out the stream
-                                    for matchIndex in matchIndices
-                                        stream.write _.clone(models[matchIndex])
+                        # Write out the stream
+                        for matchIndex in matchIndices
+                            stream.write _.clone(models[matchIndex])
 
-                                    # Finish stream
-                                    stream.end()
-                                ,
-                                (err) ->
-                                    # Finish stream
-                                    stream.end()
-                            )
+                        # Finish stream
+                        stream.end()
+                    ,
+                    (err) ->
+                        # Finish stream
+                        stream.end()
+                )
 
 
         ############################################################
@@ -362,6 +396,29 @@ module.exports = do () ->
         ############################################################
         # Custom methods
         ############################################################
+        saveLockMethods: promisify (model, cb) ->
+            if model.uuid?
+                @commitLog.funcTable[model.uuid] = {}
+                for own attrName of model
+                    if _.isFunction(model[attrName])
+                        @commitLog.funcTable[model.uuid][attrName] = model[attrName]
+                cb null, model
+            else
+                cb new Error("Commit-log model must have the UUID property defined.")
+
+
+        restoreLockMethods: promisify (model, cb) ->
+            # We are dealing with a commit-log entry
+            # re-attatch the callback methods associated to the lock
+            if !model.uuid?
+                return cb new Error("Commit-log model must have the UUID property defined.")
+
+            if !@commitLog.funcTable[model.uuid]?
+                return cb new Error("Cannot find callbacks for commit-log entry with UUID: #{model.uuid}")
+
+            for own funcName of @commitLog.funcTable[model.uuid]
+                model[funcName] = @commitLog.funcTable[model.uuid][funcName]
+            cb null, model
 
         ##########################################################################################
         #
@@ -382,6 +439,8 @@ module.exports = do () ->
     ##############                 ##########################################
     connect = (collection, cb) ->
         cb null, { db: new RiakDB(collection.dbTag) }
+
+
 
 
     return adapter
