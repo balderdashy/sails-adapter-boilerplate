@@ -7,7 +7,7 @@ createTask = () ->
     promisify (data, cb) ->
         setTimeout(
             ()->
-                console.log "Doing work: #{data}"
+                console.log "Done work: #{data}"
                 cb null, data
             ,1000)
 
@@ -24,7 +24,8 @@ taskPool.on 'task:complete', (taskId, result) ->
 
 ids = for i in [0...10]
     taskPool.addTask createTask(), i, @
-    taskPool.drain()
+
+taskPool.drain()
 
 console.log "Created #{ids.length} tasks."
 

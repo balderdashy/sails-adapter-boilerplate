@@ -1,4 +1,5 @@
 db = require('riak-js').getClient()
+
 _ = require 'underscore'
 
 _.str = require 'underscore.string'
@@ -14,28 +15,22 @@ dbKeyCountPromise = _.bind promisify(db.count), db
 dbGetAll= _.bind promisify(db.getAll), db
 dbBucketsPromise = _.bind promisify(db.buckets), db
 
+TaskPool = require './task-pool'
 
 module.exports = class RiakDB
 
     constructor: (@tag) ->
 
-    createModelQueue: {}
+    createModelTaskPools: {}
 
     create: promisify (collectionName, model, cb) ->
         if !collectionName? or !model?
             return cb new Error("RiakDB#create - Collection name and model definition must be provided.")
 
-#        drain = (collectionName) ->
-#            re
-#
-#        @createModelLock[collectionName] = {working: false, queue: [] } unless @createModelLock[collectionName]?
-#        @createModelLock[collectionName].queue.push model
-#
-#        else
-#        @createModelLock[collectionName] = true
-        # Lookup collection schema so we know all of the attribute
-        # names and the current auto-increment value
-        @describeSchema(collectionName)
+        createModelPromise = promisify (cb) ->
+            # Lookup collection schema so we know all of the attribute
+            # names and the current auto-increment value
+            @describeSchema(collectionName)
             .then(
                 (schema) =>
                     unless schema?
@@ -48,32 +43,60 @@ module.exports = class RiakDB
                         # But only if the given auto-increment value
                         # was NOT actually specified in the value set,
                         if (_.isObject(schema.attributes[attrName]) && schema.attributes[attrName].autoIncrement)
-                            if (!model[attrName])
+                            if (!model[attrName]?)
                                 # increment AI fields in values set
                                 model[attrName] = schema.autoIncrement
                             else
                                 if parseInt(model[attrName]) > schema.autoIncrement
                                     schema.autoIncrement = parseInt(model[attrName])
+                            modelKey = model[attrName]
                             break
 
                     # update the collection schema with the new AI value
                     schema.autoIncrement += 1
                     @defineSchema(collectionName, schema)
+                        .then(
+                            (schema) ->
+                                deferred modelKey
+                        )
             )
             .then(
-                (schema) =>
-                    key = schema.autoIncrement - 1
+                (key) =>
                     @save(collectionName, key, model)
             )
             .end(
-                (model) =>
-                    @createModelLock[collectionName] = false
+                (model) ->
                     cb null, model
                 ,
-                (err) =>
-                    @createModelLock[collectionName] = false
+                (err) ->
                     cb err
             )
+
+        if !@createModelTaskPools[collectionName]?
+            @createModelTaskPools[collectionName] = {}
+            @createModelTaskPools[collectionName].taskPool = new TaskPool
+            @createModelTaskPools[collectionName].cbTable = {}
+
+            @createModelTaskPools[collectionName].taskPool.on 'task:complete',
+                (completedTaskId, model) =>
+                    #console.log "Task count: #{@createModelTaskPools[collectionName].taskPool.getTaskCount()}"
+                    @createModelTaskPools[collectionName].cbTable[completedTaskId].call(null, null, model)
+                    delete @createModelTaskPools[collectionName].cbTable[completedTaskId]
+
+            @createModelTaskPools[collectionName].taskPool.on 'error',
+                (failedTaskId, err) =>
+                    @createModelTaskPools[collectionName].cbTable[failedTaskId].call(null, err)
+                    delete @createModelTaskPools[collectionName].cbTable[failedTaskId]
+
+            @createModelTaskPools[collectionName].taskPool.on 'drain:complete',
+                =>
+                    @createModelTaskPools[collectionName].taskPool.removeAllListeners 'task:complete'
+                    @createModelTaskPools[collectionName].taskPool.removeAllListeners 'drain:complete'
+                    @createModelTaskPools[collectionName].taskPool.removeAllListeners 'error'
+                    @createModelTaskPools[collectionName] = null
+
+        @createModelTaskPools[collectionName].cbTable[@createModelTaskPools[collectionName].taskPool.addTask(createModelPromise, [], @)] = cb
+        @createModelTaskPools[collectionName].taskPool.drain()
 
 
     save: promisify (collectionName, key, model, cb) ->
@@ -101,7 +124,7 @@ module.exports = class RiakDB
                     ,
                     (err) ->
                         if err.statusCode == 404
-                            cb null, null
+                            cb null
                         else
                             cb err
                 )
@@ -116,7 +139,8 @@ module.exports = class RiakDB
                     (result) ->
                         cb null, result[1].key
                     ,
-                    (err) ->
+                    (err) =>
+                        console.log "Error deleting model entry key #{key} from bucket #{"#{@tag}_#{collectionName}"}"
                         cb err
                 )
 

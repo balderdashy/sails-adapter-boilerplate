@@ -10,6 +10,8 @@ _ = require 'underscore'
 _.str = require 'underscore.string'
 _.mixin _.str.exports()
 
+uuid = require 'node-uuid'
+
 async = require 'async'
 asyncSeriesPromise = promisify async.series
 
@@ -40,7 +42,7 @@ module.exports = do () ->
         # Default configuration for collections
         # (same effect as if these properties were included at the top level of the model definitions)
         defaults:
-            port: 8098
+            port: 8087
             host: 'localhost'
             migrate: 'drop'
 
@@ -51,6 +53,8 @@ module.exports = do () ->
         # This method runs when a model is initially registered at server start time
         registerCollection: (collection, cb) ->
             collectionName = collection.identity
+
+            #console.log "REGISTER: #{collectionName}"
 
             afterwards = () =>
                 db = connections[collectionName].db
@@ -122,6 +126,7 @@ module.exports = do () ->
 
         # Flush data to disk before the adapter shuts down
         teardown: (cb) ->
+            #console.log "TEAR DOWN"
             # Noting to do here - we always persist data.
             # We keep nothing in memory.
             cb()
@@ -129,6 +134,8 @@ module.exports = do () ->
 
         # Create a new collection
         define: (collectionName, definition, cb) ->
+            #console.log "DEFINE: #{collectionName}"
+
             db = connections[collectionName].db
 
             definition = _.extend {
@@ -149,6 +156,8 @@ module.exports = do () ->
         # Fetch the schema for a collection
         # (contains attributes and autoIncrement value)
         describe: (collectionName, cb) ->
+            #console.log "DESCRIBE: #{collectionName}"
+
             db = connections[collectionName].db
 
             db.describeSchema(collectionName)
@@ -168,6 +177,7 @@ module.exports = do () ->
 
         # Drop an existing collection
         drop: (collectionName, cb) ->
+            #console.log "DROP"
             db = connections[collectionName].db
             # Delete all models in collection
             db.deleteAll(collectionName)
@@ -195,10 +205,10 @@ module.exports = do () ->
 
         # Create one or more new models in the collection
         create: (collectionName, values, cb) ->
+            #console.log "CREATE: #{collectionName}"
+
             db = connections[collectionName].db
             values = _.clone(values) || {}
-
-            console.log "----> Create #{JSON.stringify values}"
 
             promisify((cb) =>
                 # We are dealing with a commit-log entry, and we need to keep track of the
@@ -231,7 +241,7 @@ module.exports = do () ->
             )
             .end(
                 (model) ->
-                    console.log "<---- Create #{JSON.stringify model}"
+                    #console.log "EXIT"
                     cb null, model
                 ,
                 (err) ->
@@ -243,6 +253,7 @@ module.exports = do () ->
         # using where, limit, skip, and order
         # In where: handle `or`, `and`, and `like` queries
         find: (collectionName, options, cb) ->
+            #console.log "FIND: #{collectionName}"
             db = connections[collectionName].db
 
             db.getAllModels(collectionName)
@@ -276,6 +287,7 @@ module.exports = do () ->
 
         # Update one or more models in the collection
         update: (collectionName, options, values, cb) ->
+            #console.log "UPDATE"
             db = connections[collectionName].db
 
             @getAutoIncrementAttribute collectionName,
@@ -310,6 +322,7 @@ module.exports = do () ->
 
         # Delete one or more models from the collection
         destroy: (collectionName, options, cb) ->
+            #console.log "DESTROY: #{collectionName}"
             db = connections[collectionName].db
             @getAutoIncrementAttribute collectionName,
                 (err, aiAttr) ->
@@ -341,6 +354,7 @@ module.exports = do () ->
         # using where, limit, skip, and order
         # In where: handle `or`, `and`, and `like` queries
         stream: (collectionName, options, stream) ->
+            #console.log "STREAM"
             db = connections[collectionName].db
 
             db.getAllModels(collectionName)
@@ -366,24 +380,32 @@ module.exports = do () ->
         # Optional overrides
         ############################################################
 
+#        transaction: (transactionName, atomicLogic, afterUnlock) ->
+#            # Generate unique lock
+#            newLock =
+#                uuid: uuid.v4(),
+#                name: transactionName,
+#                atomicLogic: atomicLogic,
+#                afterUnlock: afterUnlock
+#
+#            if !@transactionCollection?
+#                console.error "Trying to start transaction (#{transactionName}) in collection: #{@identity}"
+#                console.error "But the transactionCollection is: #{@transactionCollection}"
+#                return afterUnlock "Transaction collection not defined!"
+#
+#            @transactionCollection.create newLock, (err, createdLock) ->
+#                if err?
+#                    return atomicLogic err, ->
+#                        throw err
+
+
+
+
+
         # Optional override of built-in batch create logic for increased efficiency
         # otherwise, uses create()
-#        createEach: (collectionName, valuesList, cb) ->
-#            taskList = []
-#            for values in valuesList
-#                taskList = (cb) =>
-#                    console.log "RUNNING JOB: Values: #{JSON.stringify values}"
-#                    @create collectionName, values, cb
-#
-#            asyncSeriesPromise(taskList)
-#                .end(
-#                    (models) ->
-#                        console.log "CREATE-EACH: Models: #{JSON.stringify models}"
-#                        cb null, models
-#                    ,
-#                    (err) ->
-#                        cb err
-#                )
+        #createEach: (collectionName, valuesList, cb) ->
+        #    cb()
 
         # Optional override of built-in findOrCreate logic for increased efficiency
         # otherwise, uses find() and create()

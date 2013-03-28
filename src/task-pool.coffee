@@ -3,37 +3,50 @@ uuid = require 'node-uuid'
 _ = require 'underscore'
 
 module.exports = class TaskPool extends EventEmitter
-    taskQueue: []
+    name: "TaskPool"
 
-    working: false
+    constructor: ->
+        taskQueue = []
 
-    addTask: (promise, args, ctx) ->
-        args = [args] if !(_.isArray args)
-        newTask =
-            promise: promise
-            args: args
-            ctx: ctx
-            id: uuid.v4()
+        working = false
 
-        @taskQueue.push newTask
-        newTask.id
+        @addTask = (promise, args, ctx) ->
+            args = [args] if !(_.isArray args)
+            newTask =
+                promise: promise
+                args: args
+                ctx: ctx
+                id: uuid.v4()
+
+            taskQueue.push newTask
+            newTask.id
 
 
-    drain: () ->
-        return null if @working
+        runNextTask = =>
+            currentTask = taskQueue.shift()
 
-        while @taskQueue.length
-            @working = true
-            currentTask = @taskQueue.shift()
+            if !currentTask?
+                @emit 'drain:complete'
+                working = false
+                return null
+
             @emit 'task:start', currentTask.id
             currentTask.promise.apply(currentTask.ctx, currentTask.args)
                 .end(
                     (result) =>
                         @emit 'task:complete', currentTask.id, result
-                    ,
-                    (err) =>
-                        @emit 'error', currentTask.id, err
+                        runNextTask()
+                ,
+                (err) =>
+                    @emit 'error', currentTask.id, err
+                    runNextTask()
                 )
 
-        @working = false
-        null
+        @drain = ->
+            return if working
+            working = true
+            runNextTask()
+
+        @getTaskCount = ->
+            taskQueue.length
+
