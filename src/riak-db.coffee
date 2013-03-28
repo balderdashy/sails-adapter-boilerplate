@@ -25,55 +25,55 @@ module.exports = class RiakDB
         if !collectionName? or !model?
             return cb new Error("RiakDB#create - Collection name and model definition must be provided.")
 
-        drain = (collectionName) ->
-            re
+#        drain = (collectionName) ->
+#            re
+#
+#        @createModelLock[collectionName] = {working: false, queue: [] } unless @createModelLock[collectionName]?
+#        @createModelLock[collectionName].queue.push model
+#
+#        else
+#        @createModelLock[collectionName] = true
+        # Lookup collection schema so we know all of the attribute
+        # names and the current auto-increment value
+        @describeSchema(collectionName)
+            .then(
+                (schema) =>
+                    unless schema?
+                        throw new Error("Cannot get schema for collection: #{collectionName} for DB instance: #{@tag}")
 
-        @createModelLock[collectionName] = {working: false, queue: [] } unless @createModelLock[collectionName]?
-        @createModelLock[collectionName].queue.push model
+                    # Determine the attribute names which will be included in the created object
+                    attrNames = _.keys _.extend({}, schema.attributes, model)
 
-        else
-            @createModelLock[collectionName] = true
-            # Lookup collection schema so we know all of the attribute
-            # names and the current auto-increment value
-            @describeSchema(collectionName)
-                .then(
-                    (schema) =>
-                        unless schema?
-                            throw new Error("Cannot get schema for collection: #{collectionName} for DB instance: #{@tag}")
+                    for attrName in attrNames
+                        # But only if the given auto-increment value
+                        # was NOT actually specified in the value set,
+                        if (_.isObject(schema.attributes[attrName]) && schema.attributes[attrName].autoIncrement)
+                            if (!model[attrName])
+                                # increment AI fields in values set
+                                model[attrName] = schema.autoIncrement
+                            else
+                                if parseInt(model[attrName]) > schema.autoIncrement
+                                    schema.autoIncrement = parseInt(model[attrName])
+                            break
 
-                        # Determine the attribute names which will be included in the created object
-                        attrNames = _.keys _.extend({}, schema.attributes, model)
-
-                        for attrName in attrNames
-                            # But only if the given auto-increment value
-                            # was NOT actually specified in the value set,
-                            if (_.isObject(schema.attributes[attrName]) && schema.attributes[attrName].autoIncrement)
-                                if (!model[attrName])
-                                    # increment AI fields in values set
-                                    model[attrName] = schema.autoIncrement
-                                else
-                                    if parseInt(model[attrName]) > schema.autoIncrement
-                                        schema.autoIncrement = parseInt(model[attrName])
-                                break
-
-                        # update the collection schema with the new AI value
-                        schema.autoIncrement += 1
-                        @defineSchema(collectionName, schema)
-                )
-                .then(
-                    (schema) =>
-                        key = schema.autoIncrement - 1
-                        @save(collectionName, key, model)
-                )
-                .end(
-                    (model) =>
-                        @createModelLock[collectionName] = false
-                        cb null, model
-                    ,
-                    (err) =>
-                        @createModelLock[collectionName] = false
-                        cb err
-                )
+                    # update the collection schema with the new AI value
+                    schema.autoIncrement += 1
+                    @defineSchema(collectionName, schema)
+            )
+            .then(
+                (schema) =>
+                    key = schema.autoIncrement - 1
+                    @save(collectionName, key, model)
+            )
+            .end(
+                (model) =>
+                    @createModelLock[collectionName] = false
+                    cb null, model
+                ,
+                (err) =>
+                    @createModelLock[collectionName] = false
+                    cb err
+            )
 
 
     save: promisify (collectionName, key, model, cb) ->
