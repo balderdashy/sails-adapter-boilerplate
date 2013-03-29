@@ -3,6 +3,9 @@
 # -> adapter
 ############################################################
 
+MAX_INTEGER = 4294967295
+TRANSACTION_WARNING_TIMEOUT = 2000;
+
 deferred = require 'deferred'
 promisify = deferred.promisify
 
@@ -42,7 +45,7 @@ module.exports = do () ->
         # Default configuration for collections
         # (same effect as if these properties were included at the top level of the model definitions)
         defaults:
-            port: 8087
+            port: 8098
             host: 'localhost'
             migrate: 'drop'
 
@@ -86,11 +89,11 @@ module.exports = do () ->
                                 )
                     )
                     .then(
-                        (maxIndex) ->
+                        (maxIndex) =>
                             if maxIndex isnt -1
                                 # Generate the next-best possible auto-increment key
                                 _schema.autoIncrement = maxIndex + 1
-                                db.defineSchema collectionName, _schema
+                                promisify(@define)(collectionName, _schema)
                             else
                                 deferred null
                     )
@@ -135,7 +138,6 @@ module.exports = do () ->
         # Create a new collection
         define: (collectionName, definition, cb) ->
             #console.log "DEFINE: #{collectionName}"
-
             db = connections[collectionName].db
 
             definition = _.extend {
@@ -143,8 +145,11 @@ module.exports = do () ->
                 autoIncrement: 1
             }, definition
 
+            options = {}
+            # Create a search index for the commit-log collection
+            options.search = collectionName is @commitLog.identity
             # Write schema objects
-            db.defineSchema(collectionName, definition)
+            db.defineSchema(collectionName, definition, options)
                 .then(
                     () ->
                         cb()
@@ -324,6 +329,7 @@ module.exports = do () ->
         destroy: (collectionName, options, cb) ->
             #console.log "DESTROY: #{collectionName}"
             db = connections[collectionName].db
+
             @getAutoIncrementAttribute collectionName,
                 (err, aiAttr) ->
                     if err?
@@ -370,7 +376,7 @@ module.exports = do () ->
                         # Finish stream
                         stream.end()
                     ,
-                    (err) ->
+                    ->
                         # Finish stream
                         stream.end()
                 )
@@ -379,28 +385,86 @@ module.exports = do () ->
         ############################################################
         # Optional overrides
         ############################################################
-
-#        transaction: (transactionName, atomicLogic, afterUnlock) ->
-#            # Generate unique lock
-#            newLock =
-#                uuid: uuid.v4(),
-#                name: transactionName,
-#                atomicLogic: atomicLogic,
-#                afterUnlock: afterUnlock
-#
-#            if !@transactionCollection?
-#                console.error "Trying to start transaction (#{transactionName}) in collection: #{@identity}"
-#                console.error "But the transactionCollection is: #{@transactionCollection}"
-#                return afterUnlock "Transaction collection not defined!"
-#
-#            @transactionCollection.create newLock, (err, createdLock) ->
-#                if err?
-#                    return atomicLogic err, ->
-#                        throw err
+        transaction: (transactionName, atomicLogic, afterUnlock) ->
 
 
+            # Find the oldest lock with the same transaction name
+            getNextLock = (locks, currentLock) ->
+                nextLock = null
+                minId = MAX_INTEGER
+
+                for lock in locks
+                    # Ignore locks with different transaction names
+                    return if lock.name isnt currentLock.name
+
+                    # Ignore current lock
+                    return if lock.uuid is currentLock.uuid
+
+                    #Find the lock with the smallest id
+                    minId = nextLock.id if nextLock?
+                    nextLock = lock if lock.id < minId
+
+                nextLock
 
 
+            acquireLock = (newLock) ->
+                warningTimer = setTimeout(
+                    ->
+                        console.error "Transaction :: #{newLock.name} is taking an abnormally long time (> #{TRANSACTION_WARNING_TIMEOUT} ms)"
+                    , TRANSACTION_WARNING_TIMEOUT
+                )
+
+                newLock.atomicLogic null, ->
+                    clearTimeout warningTimer
+                    releaseLock newLock, arguments
+
+            releaseLock = (currentLock, afterUnlockArgs) ->
+                cb = currentLock.afterUnlock
+                nextInLine = null
+
+                db.search(collectionName, "#{transactionName}")
+                    .then(
+                        (locks) ->
+                            nextInLine = getNextLock locks, currentLock
+                            db.delete(collectionName, currentLock.id)
+                    )
+                    .end(
+                        ->
+                            cb?.apply null, afterUnlockArgs
+                            acquireLock nextInLine if nextInLine?
+                        ,
+                        (err) ->
+                            cb?(err)
+                    )
+
+            collectionName = @commitLog.identity
+            db = connections[collectionName].db
+
+            # Generate unique lock
+            newLock =
+                uuid: uuid.v4(),
+                name: transactionName,
+                atomicLogic: atomicLogic,
+                afterUnlock: afterUnlock
+
+            (promisify(@create)(collectionName, newLock))
+                .then(
+                    ->
+                        console.log "CHECK 0"
+                        db.search collectionName, "#{transactionName}"
+                )
+                .end(
+                    (locks) ->
+                        console.log "CHECK 1"
+                        conflict = for lock in locks
+                            break if lock.uuid != newLock.uuid and lock.id < newLock.id
+
+                        acquireLock newLock unless conflict?
+                    ,
+                    (err) ->
+                        return atomicLogic err, ->
+                            throw err
+                )
 
         # Optional override of built-in batch create logic for increased efficiency
         # otherwise, uses create()

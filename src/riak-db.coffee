@@ -10,10 +10,12 @@ promisify = deferred.promisify
 
 dbRemovePromise = _.bind promisify(db.remove), db
 dbSavePromise = _.bind promisify(db.save), db
+dbSaveBucketPromise = _.bind promisify(db.saveBucket), db
 dbGetPromise = _.bind promisify(db.get), db
 dbKeyCountPromise = _.bind promisify(db.count), db
 dbGetAll= _.bind promisify(db.getAll), db
 dbBucketsPromise = _.bind promisify(db.buckets), db
+dbSearchPromise = _.bind promisify(db.search.find), db
 
 TaskPool = require './task-pool'
 
@@ -24,7 +26,7 @@ module.exports = class RiakDB
     createModelTaskPools: {}
 
     create: promisify (collectionName, model, cb) ->
-        if !collectionName? or !model?
+        unless (collectionName? and model?)
             return cb new Error("RiakDB#create - Collection name and model definition must be provided.")
 
         createModelPromise = promisify (cb) ->
@@ -54,7 +56,7 @@ module.exports = class RiakDB
 
                     # update the collection schema with the new AI value
                     schema.autoIncrement += 1
-                    @defineSchema(collectionName, schema)
+                    @defineSchema(collectionName, schema, {})
                         .then(
                             (schema) ->
                                 deferred modelKey
@@ -79,7 +81,6 @@ module.exports = class RiakDB
 
             @createModelTaskPools[collectionName].taskPool.on 'task:complete',
                 (completedTaskId, model) =>
-                    #console.log "Task count: #{@createModelTaskPools[collectionName].taskPool.getTaskCount()}"
                     @createModelTaskPools[collectionName].cbTable[completedTaskId].call(null, null, model)
                     delete @createModelTaskPools[collectionName].cbTable[completedTaskId]
 
@@ -100,75 +101,75 @@ module.exports = class RiakDB
 
 
     save: promisify (collectionName, key, model, cb) ->
-        if !collectionName? or !key? or !model?
-            cb new Error("RiakDB#save - Collection name, key and model definition must be provided.")
-        else
-            dbSavePromise("#{@tag}_#{collectionName}", key, model, { returnbody: true })
-                .then(
-                    (result) =>
-                        cb null, result.shift()
-                    ,
-                    (err) ->
-                        cb err
-                )
+        unless (collectionName? and key? and model?)
+            return cb new Error("RiakDB#save - Collection name, key and model definition must be provided.")
+
+        dbSavePromise("#{@tag}_#{collectionName}", key, model, { returnbody: true })
+            .then(
+                (result) ->
+                    cb null, result.shift()
+                ,
+                (err) ->
+                    cb err
+            )
 
 
     get: promisify (collectionName, key, cb) ->
-        if !collectionName? or !key?
-            cb new Error("RiakDB#get - The collection name and the key must be provided.")
-        else
-            dbGetPromise("#{@tag}_#{collectionName}", key, {})
-                .then(
-                    (result) =>
-                        cb null, result.shift()
-                    ,
-                    (err) ->
-                        if err.statusCode == 404
-                            cb null
-                        else
-                            cb err
-                )
+        unless (collectionName? and key?)
+            return cb new Error("RiakDB#get - The collection name and the key must be provided.")
+
+        dbGetPromise("#{@tag}_#{collectionName}", key, {})
+            .then(
+                (result) =>
+                    cb null, result.shift()
+                ,
+                (err) ->
+                    if err.statusCode == 404
+                        cb null
+                    else
+                        cb err
+            )
 
 
     delete: promisify (collectionName, key, cb) ->
-        if !collectionName? or !key?
-            cb new Error("RiakDB#delete - The collection name and the key must be provided.")
-        else
-            dbRemovePromise("#{@tag}_#{collectionName}", key)
-                .then(
-                    (result) ->
-                        cb null, result[1].key
-                    ,
-                    (err) =>
-                        console.log "Error deleting model entry key #{key} from bucket #{"#{@tag}_#{collectionName}"}"
-                        cb err
-                )
+        unless (collectionName? and key?)
+            return cb new Error("RiakDB#delete - The collection name and the key must be provided.")
+
+        dbRemovePromise("#{@tag}_#{collectionName}", key)
+            .then(
+                (result) ->
+                    cb null, result[1].key
+                ,
+                (err) =>
+                    console.log "Error deleting model entry key #{key} from bucket #{"#{@tag}_#{collectionName}"}"
+                    cb err
+            )
 
 
     deleteAll: promisify (collectionName, cb) ->
-        if !collectionName?
-            cb new Error("RiakDB#deleteAll - The collection name must be provided.")
-        else
-            @getAllKeys(collectionName)
-                .then(
-                    (keys) =>
-                        deferred.map(keys,
-                            (key) =>
-                                @delete(collectionName, key)
-                                    .then(
-                                        (deletedKey) ->
-                                            deletedKey
-                                    )
-                        )
-                )
-                .then(
-                    (deletedKeys) ->
-                        cb null, deletedKeys
-                    ,
-                    (err) ->
-                        cb err
-                )
-                .end()
+        unless collectionName?
+            return cb new Error("RiakDB#deleteAll - The collection name must be provided.")
+
+        @getAllKeys(collectionName)
+            .then(
+                (keys) =>
+                    deferred.map(keys,
+                        (key) =>
+                            @delete(collectionName, key)
+                                .then(
+                                    (deletedKey) ->
+                                        deletedKey
+                                )
+                    )
+            )
+            .then(
+                (deletedKeys) ->
+                    cb null, deletedKeys
+                ,
+                (err) ->
+                    cb err
+            )
+            .end()
 
 
     getCollections: promisify (cb) ->
@@ -189,102 +190,132 @@ module.exports = class RiakDB
 
     getAllKeys: promisify (collectionName, cb) ->
         unless collectionName?
-            cb new Error("RiakDB#getAllKeys - Collection name must be provided.")
-        else
-            keyStream = db.keys "#{@tag}_#{collectionName}", { keys: 'stream' }, undefined
+            return cb new Error("RiakDB#getAllKeys - Collection name must be provided.")
 
-            keyList = []
-            keyStream.on 'keys', (keys) ->
-                for key in keys
-                    keyList.push key
+        keyStream = db.keys "#{@tag}_#{collectionName}", { keys: 'stream' }, undefined
 
-            keyStream.on 'end', () ->
-                cb null, keyList
+        keyList = []
+        keyStream.on 'keys', (keys) ->
+            for key in keys
+                keyList.push key
 
-            keyStream.start()
+        keyStream.on 'end', () ->
+            cb null, keyList
+
+        keyStream.start()
 
 
     getAllModels: promisify (collectionName, cb) ->
         unless collectionName?
-            cb new Error("RiakDB#getAllModels - Collection name must be provided.")
-        else
-            dbGetAll("#{@tag}_#{collectionName}")
-                .then(
-                    (result) =>
-                        cb null, result.shift()
-                    ,
-                    (err) ->
-                        cb err
-                )
+            return cb new Error("RiakDB#getAllModels - Collection name must be provided.")
+
+        dbGetAll("#{@tag}_#{collectionName}")
+            .then(
+                (result) =>
+                    cb null, result.shift()
+                ,
+                (err) ->
+                    cb err
+            )
 
 
     getMaxIndex: promisify (collectionName, cb) ->
         unless collectionName?
-            cb new Error("RiakDB#getAllModlesInCollection - Collection name must be provided.")
-        else
-            db.mapreduce
-                .add("#{@tag}_#{collectionName}")
-                .map(
-                    (riakObj) ->
-                        [(Riak.mapValuesJson(riakObj)[0]).id ]
-                )
-                .reduce(
-                    (v) ->
-                        [Math.max.apply(null, v)]
-                )
-                .run (err, maxIndex) ->
-                    if err?
-                        cb err
+            return cb new Error("RiakDB#getAllModlesInCollection - Collection name must be provided.")
+
+        db.mapreduce
+            .add("#{@tag}_#{collectionName}")
+            .map(
+                (riakObj) ->
+                    [(Riak.mapValuesJson(riakObj)[0]).id ]
+            )
+            .reduce(
+                (v) ->
+                    [Math.max.apply(null, v)]
+            )
+            .run (err, maxIndex) ->
+                if err?
+                    cb err
+                else
+                    cb null, maxIndex[0];
+
+
+    defineSchema: promisify (collectionName, definition, options, cb) ->
+        unless (collectionName? and definition?)
+            return cb new Error('RiakDB#defineSchema - Collection name and schema definition must be provided.')
+
+        savedModel = null
+
+        # save the schema
+        dbSavePromise("#{@tag}_schema", collectionName, definition, { returnbody: true })
+            .then(
+                (result) =>
+                    savedModel = result.shift()
+                    if options?.search is true
+                        console.log "Creating search index for collection: #{collectionName}"
+                        # create a search index for the collection
+                        dbSaveBucketPromise("#{@tag}_#{collectionName}", {search: true})
                     else
-                        cb null, maxIndex[0];
-
-
-    defineSchema: promisify (collectionName, definition, cb) ->
-        unless (collectionName? && definition?)
-            cb new Error('RiakDB#defineSchema - Collection name and schema definition must be provided.')
-        else
-            dbSavePromise("#{@tag}_schema", collectionName, definition, { returnbody: true })
-                .then(
-                    (result) =>
-                        cb null, result.shift()
-                    ,
-                    (err) ->
-                        cb err
-                )
+                        deferred true
+            )
+            .end(
+                ->
+                    cb null, savedModel
+                ,
+                (err) ->
+                    cb err
+            )
 
 
     describeSchema: promisify (collectionName, cb) ->
         unless collectionName?
-            cb new Error("RiakDB#defineSchema - Collection name must be provided.")
-        else
-            dbGetPromise("#{@tag}_schema", collectionName, {})
-                .then(
-                    (result) ->
-                        cb null, result.shift()
-                    ,
-                    (err) ->
-                        if err.statusCode == 404
-                            cb null
-                        else
-                            cb err
-                )
+            return cb new Error("RiakDB#describeSchema - Collection name must be provided.")
+
+        dbGetPromise("#{@tag}_schema", collectionName, {})
+            .then(
+                (result) ->
+                    cb null, result.shift()
+                ,
+                (err) ->
+                    if err.statusCode == 404
+                        cb null
+                    else
+                        cb err
+            )
+
+
+    search: promisify (collectionName, searchTerm, cb) ->
+        unless (collectionName? and searchTerm?)
+            return cb new Error("RiakDB#searchInCollection - Collection name must and the search-term be provided.")
+
+        console.log "CHECK 0.1"
+        dbSearchPromise("#{@tag}_#{collectionName}", "#{searchTerm}")
+            .end(
+                (result) ->
+                    console.log "CHECK 0.2"
+                    cb null, result.shift()
+                ,
+                (err) ->
+                    console.log "CHECK 0.3"
+                    cb err
+            )
 
 
     deleteSchema: promisify (collectionName, cb) ->
         unless collectionName?
-            cb new Error("RiakDB#deleteSchema - Collection name must be provided.")
-        else
-            dbRemovePromise("#{@tag}_schema", collectionName)
-                .then(
-                    (result) ->
-                        cb null, result[1].key
-                    ,
-                    (err) ->
-                        if err.statusCode == 404
-                            cb null
-                        else
-                            cb err
-                )
+            return new Error("RiakDB#deleteSchema - Collection name must be provided.")
+
+        dbRemovePromise("#{@tag}_schema", collectionName)
+            .then(
+                (result) ->
+                    cb null, result[1].key
+                ,
+                (err) ->
+                    if err.statusCode == 404
+                        cb null
+                    else
+                        cb err
+            )
 
     resetDB: promisify (cb) ->
         dbBucketsPromise()
