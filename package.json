@@ -1,27 +1,31 @@
 {
-  "name": "sails-adapter-boilerplate",
+  "name": "sails-riak",
   "version": "0.0.1",
-  "description": "Boilerplate adapter for Sails.js",
-  "main": "BoilerplateAdapter.js",
+  "description": "Riak adapter for Sails.js",
+  "main": "./lib/index.js",
   "scripts": {
     "test": "echo \"Adapter should be tested using Sails.js core.\" && exit 1"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/balderdashy/sails-adapter-boilerplate.git"
+    "url": "https://github.com/andreifecioru/sails-adapter-boilerplate.git"
   },
   "keywords": [
     "orm",
     "waterline",
     "sails",
     "sailsjs",
-    "sails.js"
+    "sails.js",
+    "riak"
   ],
-  "author": "Your name here",
+  "author": "Andrei Fecioru",
   "license": "MIT",
   "readmeFilename": "README.md",
   "dependencies": {
     "async": "0.1.22",
+    "deferred": "0.6.1",
+    "node-uuid": "1.4.0",
+    "riak-js": "0.9.4pre3",
     "underscore": "1.4.3",
     "underscore.string": "2.3.1"
   }
