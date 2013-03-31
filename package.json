@@ -15,13 +15,17 @@
     "waterline",
     "sails",
     "sailsjs",
-    "sails.js"
+    "sails.js",
+    "riak"
   ],
   "author": "Andrei Fecioru",
   "license": "MIT",
   "readmeFilename": "README.md",
   "dependencies": {
     "async": "0.1.22",
+    "deferred": "0.6.1",
+    "node-uuid": "1.4.0",
+    "riak-js": "0.9.4pre3",
     "underscore": "1.4.3",
     "underscore.string": "2.3.1"
   }

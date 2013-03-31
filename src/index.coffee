@@ -22,7 +22,7 @@ RiakDB = require './riak-db'
 
 module.exports = do () ->
     # Load criteria module
-    getMatchIndices = require './criteria.js'
+    getMatchIndices = require './criteria'
 
     # Maintain a list of active DB objects
     connections = { }
@@ -35,11 +35,13 @@ module.exports = do () ->
         # Enable transactions by allowing Riak to create a
         # bucket for commitLog entries
         commitLog:
-             identity: 'commit_log'
-             adapter: 'sails-riak'
-             dbTag: 'transactions'
-             migrate: 'drop'
-             funcTable: {}
+            identity: 'commit_log'
+            adapter: 'sails-riak'
+            dbTag: 'transactions'
+            port: 8098
+            host: 'localhost'
+            migrate: 'drop'
+            funcTable: {}
 
 
         # Default configuration for collections
@@ -49,15 +51,13 @@ module.exports = do () ->
             host: 'localhost'
             migrate: 'drop'
 
-            # Bucket namespace: a prefix pre-pended to all Riak buckets
+            # DB namespace: a prefix pre-pended to all Riak buckets
             dbTag: 'test'
 
 
         # This method runs when a model is initially registered at server start time
         registerCollection: (collection, cb) ->
             collectionName = collection.identity
-
-            #console.log "REGISTER: #{collectionName}"
 
             afterwards = () =>
                 db = connections[collectionName].db
@@ -98,7 +98,7 @@ module.exports = do () ->
                                 deferred null
                     )
                     .end(
-                        (updatedSchema) ->
+                        ->
                             cb()
                         ,
                         (err) ->
@@ -129,7 +129,6 @@ module.exports = do () ->
 
         # Flush data to disk before the adapter shuts down
         teardown: (cb) ->
-            #console.log "TEAR DOWN"
             # Noting to do here - we always persist data.
             # We keep nothing in memory.
             cb()
@@ -137,7 +136,6 @@ module.exports = do () ->
 
         # Create a new collection
         define: (collectionName, definition, cb) ->
-            #console.log "DEFINE: #{collectionName}"
             db = connections[collectionName].db
 
             definition = _.extend {
@@ -150,8 +148,8 @@ module.exports = do () ->
             options.search = collectionName is @commitLog.identity
             # Write schema objects
             db.defineSchema(collectionName, definition, options)
-                .then(
-                    () ->
+                .end(
+                    ->
                         cb()
                     ,
                     (err) ->
@@ -161,12 +159,10 @@ module.exports = do () ->
         # Fetch the schema for a collection
         # (contains attributes and autoIncrement value)
         describe: (collectionName, cb) ->
-            #console.log "DESCRIBE: #{collectionName}"
-
             db = connections[collectionName].db
 
             db.describeSchema(collectionName)
-                .then(
+                .end(
                     (schema) ->
                         cb null, schema?.attributes
                     ,
@@ -182,17 +178,16 @@ module.exports = do () ->
 
         # Drop an existing collection
         drop: (collectionName, cb) ->
-            #console.log "DROP"
             db = connections[collectionName].db
             # Delete all models in collection
             db.deleteAll(collectionName)
                 .then(
-                    (deletedKeys) ->
+                    ->
                         # Delete the collection schema
                         db.deleteSchema(collectionName)
                 )
                 .end(
-                    (schemaKey) ->
+                    ->
                         cb()
                     ,
                     (err) ->
@@ -210,8 +205,6 @@ module.exports = do () ->
 
         # Create one or more new models in the collection
         create: (collectionName, values, cb) ->
-            #console.log "CREATE: #{collectionName}"
-
             db = connections[collectionName].db
             values = _.clone(values) || {}
 
@@ -246,7 +239,6 @@ module.exports = do () ->
             )
             .end(
                 (model) ->
-                    #console.log "EXIT"
                     cb null, model
                 ,
                 (err) ->
@@ -258,7 +250,6 @@ module.exports = do () ->
         # using where, limit, skip, and order
         # In where: handle `or`, `and`, and `like` queries
         find: (collectionName, options, cb) ->
-            #console.log "FIND: #{collectionName}"
             db = connections[collectionName].db
 
             db.getAllModels(collectionName)
@@ -292,7 +283,6 @@ module.exports = do () ->
 
         # Update one or more models in the collection
         update: (collectionName, options, values, cb) ->
-            #console.log "UPDATE"
             db = connections[collectionName].db
 
             @getAutoIncrementAttribute collectionName,
@@ -327,7 +317,6 @@ module.exports = do () ->
 
         # Delete one or more models from the collection
         destroy: (collectionName, options, cb) ->
-            #console.log "DESTROY: #{collectionName}"
             db = connections[collectionName].db
 
             @getAutoIncrementAttribute collectionName,
@@ -344,11 +333,11 @@ module.exports = do () ->
                                     # Replace data collection and go back
                                     deferred.map(matchIndices,
                                         (matchIndex) ->
-                                            db.delete(collectionName, models[matchIndex][aiAttr])
+                                            db.remove(collectionName, models[matchIndex][aiAttr])
                                     )
                             )
                             .end(
-                                (deletedKeys) ->
+                                ->
                                     cb null
                                 ,
                                 (err) ->
@@ -360,7 +349,6 @@ module.exports = do () ->
         # using where, limit, skip, and order
         # In where: handle `or`, `and`, and `like` queries
         stream: (collectionName, options, stream) ->
-            #console.log "STREAM"
             db = connections[collectionName].db
 
             db.getAllModels(collectionName)
@@ -386,8 +374,6 @@ module.exports = do () ->
         # Optional overrides
         ############################################################
         transaction: (transactionName, atomicLogic, afterUnlock) ->
-
-
             # Find the oldest lock with the same transaction name
             getNextLock = (locks, currentLock) ->
                 nextLock = null
@@ -395,10 +381,10 @@ module.exports = do () ->
 
                 for lock in locks
                     # Ignore locks with different transaction names
-                    return if lock.name isnt currentLock.name
+                    continue if lock.name isnt currentLock.name
 
                     # Ignore current lock
-                    return if lock.uuid is currentLock.uuid
+                    continue if lock.uuid is currentLock.uuid
 
                     #Find the lock with the smallest id
                     minId = nextLock.id if nextLock?
@@ -418,19 +404,31 @@ module.exports = do () ->
                     clearTimeout warningTimer
                     releaseLock newLock, arguments
 
-            releaseLock = (currentLock, afterUnlockArgs) ->
+            releaseLock = (currentLock, afterUnlockArgs) =>
                 cb = currentLock.afterUnlock
                 nextInLine = null
 
-                db.search(collectionName, "#{transactionName}")
+                db.search(collectionName, "name:#{transactionName}")
                     .then(
-                        (locks) ->
-                            nextInLine = getNextLock locks, currentLock
-                            db.delete(collectionName, currentLock.id)
+                        (searchResults) =>
+                            nextInLine = getNextLock(_.map(searchResults, (searchResult) -> searchResult.fields), currentLock)
+                            if nextInLine?
+                                @restoreLockMethods nextInLine
+                            else
+                                deferred null
+                    )
+                    .then(
+                        (restoredLockObject) ->
+                            nextInLine = restoredLockObject
+                            db.remove collectionName, currentLock.id
                     )
                     .end(
                         ->
+                            # Trigger unlock's callback if specified
+                            # > NOTE: do this before triggering the next queued transaction
+                            # to prevent transactions from monopolizing the event loop
                             cb?.apply null, afterUnlockArgs
+
                             acquireLock nextInLine if nextInLine?
                         ,
                         (err) ->
@@ -449,17 +447,22 @@ module.exports = do () ->
 
             (promisify(@create)(collectionName, newLock))
                 .then(
-                    ->
-                        console.log "CHECK 0"
-                        db.search collectionName, "#{transactionName}"
+                    (createdLock) ->
+                        newLock = createdLock
+                        db.search collectionName, "name:#{transactionName}"
                 )
                 .end(
-                    (locks) ->
-                        console.log "CHECK 1"
-                        conflict = for lock in locks
-                            break if lock.uuid != newLock.uuid and lock.id < newLock.id
+                    (searchResults) ->
+                        conflict = null
+                        for searchResult in searchResults
+                            if searchResult.fields.uuid != newLock.uuid and searchResult.id < newLock.id
+                                conflict = _.extend { id: searchResult.id }, searchResult.fields
+                                break
 
+                        # If there are no conflicts, the lock is acquired!
                         acquireLock newLock unless conflict?
+
+                        # Otherwise, get in line: a lock was acquired before mine, do nothing
                     ,
                     (err) ->
                         return atomicLogic err, ->
@@ -524,9 +527,6 @@ module.exports = do () ->
     ############## Private Methods ##########################################
     ##############                 ##########################################
     connect = (collection, cb) ->
-        cb null, { db: new RiakDB(collection.dbTag) }
-
-
-
+        cb null, { db: new RiakDB collection }
 
     return adapter
