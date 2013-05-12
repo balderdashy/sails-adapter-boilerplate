@@ -4,8 +4,6 @@
 ---------------------------------------------------------------*/
 
 var async = require('async');
-var _ = require('underscore');
-_.str = require('underscore.string');
 
 module.exports = (function() {
 
