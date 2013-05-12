@@ -2,7 +2,9 @@ describe('registerCollection', function () {
 
 	it('should not hang or encounter any errors', function (cb) {
 		var adapter = require('../index.js');
-		adapter.registerCollection(cb);
+		adapter.registerCollection({
+			identity: 'foo'
+		}, cb);
 	});
 
 	// e.g.
