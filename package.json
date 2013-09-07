@@ -1,26 +1,27 @@
 {
-  "name": "sails-adapter-boilerplate",
+  "name": "sails-yelp",
   "version": "0.0.1",
-  "description": "Boilerplate adapter for Sails.js",
-  "main": "BoilerplateAdapter.js",
+  "description": "Adapter for the Yelp API",
+  "main": "YelpAdapter.js",
   "scripts": {
     "test": "echo \"Adapter should be tested using Sails.js core.\" && exit 1"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/balderdashy/sails-adapter-boilerplate.git"
+    "url": "https://github.com/vergun/sails-yelp.git"
   },
   "keywords": [
     "orm",
     "waterline",
     "sails",
     "sailsjs",
-    "sails.js"
+    "sails.js",
+    "yelp"
   ],
-  "author": "Your name here",
+  "author": "Verdi Ergun",
   "license": "MIT",
   "readmeFilename": "README.md",
   "dependencies": {
-    "async": "0.1.22"
+    "yelp": "~0.1.1"
   }
 }

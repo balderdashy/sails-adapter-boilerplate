@@ -1,30 +1,57 @@
 ![image_squidhome@2x.png](http://i.imgur.com/RIvu9.png) 
 
-# BoilerplateAdapter
+# YelpAdapter
 
-This template exists to make it easier for you to get started writing an official adapter for Sails.js.
+This adapter extends the node-yelp module to Sails.js. (https://github.com/olalonde/node-yelp).
 
+## Installation
 
-## Getting started
-It's usually pretty easy to add your own adapters for integrating with proprietary systems or existing open APIs.  For most things, it's as easy as `require('some-module')` and mapping the appropriate methods to match waterline semantics.  To get started:
+This isn't released as an npm module so you have to download YelpAdapter.js and place it in your `api/adapters` directory.
 
-1. Fork this repository
-2. Set up your README and package.json file.  Sails.js adapter module names are of the form sails-*, where * is the name of the datastore or service you're integrating with.
-3. Build your adapter.
+## Setup
 
-## How to test your adapter
-1. Run `npm link` in this adapter's directory
-2. Clone the sails.js core and modify the tests to use your new adapter.
-3. Run `npm link sails-boilerplate`
-4. From the sails.js core directory, run `npm test`.
+Add your yelp credentials to config/application.yml
 
-## Submitting your adapter
-1. Do a pull request to this repository (make sure you attribute yourself as the author set the license in the package.json to "MIT")  Please let us know about any special instructions for usage/testing.
-2. We'll run the tests one last time.  If there are any issues, we'll let you know.
-3. When it's ready, we'll update the documentation with information about your new adapter
-4. Then we'll tweet and post about it on our blog, adoring you with lavish praises.
-5. Mike will send you jelly beans.
+```
+development:
+  yelp:
+    consumer_key: "your_consumer_key"
+    consumer_secret: "your_consumer_secret"
+    token: "your_token"
+    token_secret: "your_token_secret"
+```
 
+Then require them in config/application.js
+```
+require('js-yaml');
+global.NODE_ENV = process.env.ENV || 'development'
+global.appConfig = require('./local.yml')[NODE_ENV]
+```
+
+## Usage
+
+Create a YelpBusiness model hooked up to the yelp adapter:
+
+// api/models/YelpBusiness.js
+
+```
+module.exports = {
+	adapter: 'yelp'
+};
+```
+
+Then you can use it:
+```
+YelpBusiness.business("yelp-san-francisco", function(error, data) {
+  console.log(error);
+  console.log(data);
+});
+
+YelpBusiness.search("Tacos", "San Francisco, CA", function(error, data) {
+  console.log(error);
+  console.log(data);
+});
+```
 
 ## About Sails.js and Waterline
 http://SailsJs.com
