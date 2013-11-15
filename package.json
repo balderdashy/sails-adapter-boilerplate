@@ -1,5 +1,5 @@
 {
-  "name": "sails-adapter-boilerplate",
+  "name": "sails-sqlite3",
   "version": "0.0.1",
   "description": "Boilerplate adapter for Sails.js",
   "main": "BoilerplateAdapter.js",
@@ -17,7 +17,7 @@
     "sailsjs",
     "sails.js"
   ],
-  "author": "Your name here",
+  "author": "Andrew Jo <andrewjo@gmail.com>",
   "license": "MIT",
   "readmeFilename": "README.md",
   "dependencies": {
