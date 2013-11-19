@@ -22,6 +22,7 @@
   "readmeFilename": "README.md",
   "dependencies": {
     "async": "0.1.22",
-    "sqlite3": "2.1.19"
+    "sqlite3": "2.1.19",
+    "underscore": "1.5.2"
   }
 }
