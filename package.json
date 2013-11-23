@@ -2,7 +2,7 @@
   "name": "sails-sqlite3",
   "version": "0.0.1",
   "description": "Boilerplate adapter for Sails.js",
-  "main": "BoilerplateAdapter.js",
+  "main": "lib/adapter",
   "scripts": {
     "test": "echo \"Adapter should be tested using Sails.js core.\" && exit 1"
   },
@@ -24,5 +24,13 @@
     "async": "0.1.22",
     "sqlite3": "2.1.19",
     "underscore": "1.5.2"
+  },
+  "devDependencies": {
+    "mocha": "*",
+    "should": "*",
+    "waterline-adapter-tests": "~0.9.4"
+  },
+  "scripts": {
+    "test": "make test"
   }
 }
