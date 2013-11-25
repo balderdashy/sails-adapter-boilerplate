@@ -1,5 +1,5 @@
 var sqlite3 = require('sqlite3'),
-    adapter = require('../../lib/adapter');
+    adapter = require('../../../lib/adapter');
 
 var Support = module.exports = {};
 
@@ -18,6 +18,12 @@ Support.Definition = {
     defaultsTo: 'AUTO_INCREMENT',
     primaryKey: true
   }
+};
+
+Support.Client = function(cb) {
+  var client = new sqlite3.Database(Support.Config.filename, Support.Config.mode, function(err) {
+    cb(err, client);
+  });
 };
 
 Support.Collection = function(name) {
@@ -41,11 +47,11 @@ Support.Teardown = function(tableName, cb) {
   var client = new sqlite3.Database(Support.Config.filename, Support.Config.mode, function(err) {
     dropTable(tableName, client, function(err) {
       if (err) {
-        done();
+        client.close();
         return cb(err);
       }
 
-      done();
+      client.close();
       return cb();
     });
   });
