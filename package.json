@@ -21,8 +21,8 @@
   "license": "MIT",
   "readmeFilename": "README.md",
   "dependencies": {
-    "async": "0.1.22",
-    "sqlite3": "2.1.19",
+    "async": "~0.2.9",
+    "sqlite3": "~2.1.x",
     "underscore": "1.5.2"
   },
   "devDependencies": {
