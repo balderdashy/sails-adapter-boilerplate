@@ -1,4 +1,5 @@
 var tests = require('waterline-adapter-tests'),
+    sqlite3 = require('sqlite3'),
     adapter = require('../../lib/adapter'),
     mocha = require('mocha');
 
@@ -7,8 +8,8 @@ var tests = require('waterline-adapter-tests'),
  */
 
 var config = {
-  filename: ":memory:",
-  mode: sqlite3.OPEN_READWRITE | OPEN_CREATE,
+  filename: "sailssqlite.db",
+  mode: sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE,
   verbose: true
 };
 
