@@ -1,8 +1,8 @@
 {
-  "name": "sails-adapter-boilerplate",
+  "name": "sails-sqlite3",
   "version": "0.0.1",
   "description": "Boilerplate adapter for Sails.js",
-  "main": "BoilerplateAdapter.js",
+  "main": "lib/adapter",
   "scripts": {
     "test": "echo \"Adapter should be tested using Sails.js core.\" && exit 1"
   },
@@ -17,10 +17,20 @@
     "sailsjs",
     "sails.js"
   ],
-  "author": "Your name here",
+  "author": "Andrew Jo <andrewjo@gmail.com>",
   "license": "MIT",
   "readmeFilename": "README.md",
   "dependencies": {
-    "async": "0.1.22"
+    "async": "~0.2.9",
+    "sqlite3": "~2.1.x",
+    "underscore": "1.5.2"
+  },
+  "devDependencies": {
+    "mocha": "*",
+    "should": "*",
+    "waterline-adapter-tests": "~0.9.4"
+  },
+  "scripts": {
+    "test": "make test"
   }
 }

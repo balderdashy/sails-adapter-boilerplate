@@ -1,9 +1,12 @@
 ![image_squidhome@2x.png](http://i.imgur.com/RIvu9.png) 
 
-# BoilerplateAdapter
+# SQLite3 Sails/Waterline Adapter
 
-This template exists to make it easier for you to get started writing an official adapter for Sails.js.
+A [Waterline](https://github.com/balderdashy/waterline) adapter for SQLite3. May be used in a [Sails](https://github.com/balderdashy/sails) app or anything using Waterline for the ORM.
 
+
+## Disclaimer
+SQLite3 adapter is in a very early development stage and not ready for primetime.
 
 ## Getting started
 It's usually pretty easy to add your own adapters for integrating with proprietary systems or existing open APIs.  For most things, it's as easy as `require('some-module')` and mapping the appropriate methods to match waterline semantics.  To get started:
