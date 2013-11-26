@@ -1,4 +1,4 @@
-var sqlite3 = require('sqlite3'),
+var sqlite3 = require('sqlite3').verbose(),
     adapter = require('../../../lib/adapter');
 
 var Support = module.exports = {};
@@ -34,6 +34,21 @@ Support.Collection = function(name) {
   };
 };
 
+// Seed a record to use for testing
+Support.Seed = function(tableName, cb) {
+  var client = new sqlite3.Database(Support.Config.filename, Support.Config.mode, function(err) {
+    createRecord(tableName, client, function(err) {
+      if(err) {
+        client.close();
+        return cb(err);
+      }
+
+      client.close();
+      cb();
+    });
+  });
+};
+
 // Register and define a collection
 Support.Setup = function(tableName, cb) {
   adapter.registerCollection(Support.Collection(tableName), function(err) {
@@ -61,5 +76,16 @@ function dropTable(table, client, cb) {
   table = '"' + table + '"';
 
   var query = "DROP TABLE " + table;
+  client.run(query, cb);
+}
+
+function createRecord(table, client, cb) {
+  table = '"' + table + '"';
+
+  var query = [
+  "INSERT INTO " + table + ' (field_1, field_2)',
+  " values ('foo', 'bar');"
+  ].join('');
+
   client.run(query, cb);
 }
