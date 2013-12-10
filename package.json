@@ -1,26 +1,30 @@
 {
-  "name": "sails-adapter-boilerplate",
+  "name": "sails-neo4j",
   "version": "0.0.1",
-  "description": "Boilerplate adapter for Sails.js",
-  "main": "BoilerplateAdapter.js",
+  "description": "Neo4j adapter for Sails.js",
+  "main": "lib/adapter.js",
   "scripts": {
     "test": "echo \"Adapter should be tested using Sails.js core.\" && exit 1"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/balderdashy/sails-adapter-boilerplate.git"
+    "url": "https://github.com/natgeo/sails-neo4j.git"
   },
   "keywords": [
     "orm",
     "waterline",
     "sails",
     "sailsjs",
-    "sails.js"
+    "sails.js",
+    "neo4j",
+    "graph",
+    "database"
   ],
-  "author": "Your name here",
+  "author": "National Geographic Society",
   "license": "MIT",
   "readmeFilename": "README.md",
   "dependencies": {
-    "async": "0.1.22"
+    "async": "0.1.22",
+    "neo4j-js": "0.0.7"
   }
 }
