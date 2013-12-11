@@ -4,7 +4,7 @@
   "description": "Neo4j adapter for Sails.js",
   "main": "lib/adapter.js",
   "scripts": {
-    "test": "echo \"Adapter should be tested using Sails.js core.\" && exit 1"
+    "test": "mocha --reporter spec"
   },
   "repository": {
     "type": "git",
@@ -27,5 +27,8 @@
     "async": "0.1.22",
     "neo4j-js": "0.0.7",
     "q": "~0.9.7"
+  },
+  "devDependencies": {
+    "mocha": "~1.15.1"
   }
 }
