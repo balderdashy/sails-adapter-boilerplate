@@ -4,7 +4,7 @@
   "description": "Boilerplate adapter for Sails.js",
   "main": "BoilerplateAdapter.js",
   "scripts": {
-    "test": "echo \"Adapter should be tested using Sails.js core.\" && exit 1"
+    "test": "node test/integration/runner"
   },
   "repository": {
     "type": "git",
