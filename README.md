@@ -19,7 +19,7 @@ It's usually pretty easy to add your own adapters for integrating with proprieta
 
 ## How to test your adapter
 1. Configure the interfaces you plan to support in `adapter.json`.
-2. Run `npm tests` in this adapter's directory.
+2. In your adapter's directory, run `npm test`.
 
 
 ## Publish your adapter
