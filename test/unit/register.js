@@ -1,10 +1,15 @@
+/**
+ * Test dependencies
+ */
+var Adapter = require('../../');
+
+
 describe('registerCollection', function () {
 
-	it('should not hang or encounter any errors', function (cb) {
-		var adapter = require('../index.js');
-		adapter.registerCollection({
+	it('should not hang or encounter any errors', function (done) {
+		Adapter.registerCollection({
 			identity: 'foo'
-		}, cb);
+		}, done);
 	});
 
 	// e.g.
