@@ -2,7 +2,10 @@
  * Module Dependencies
  */
 // ...
-
+// e.g.
+// var _ = require('lodash');
+// var mysql = require('node-mysql');
+// ...
 
 
 
