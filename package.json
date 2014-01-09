@@ -22,5 +22,8 @@
   "readmeFilename": "README.md",
   "dependencies": {
     "async": "0.1.22"
+  },
+  "devDependencies": {
+    "waterline-adapter-tests": "~0.9.4"
   }
 }
