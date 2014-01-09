@@ -1,29 +1,38 @@
 {
-  "name": "sails-adapter-boilerplate",
-  "version": "0.0.1",
+  "name": "sails-YOUR_ADAPTER",
+  "version": "0.0.0",
   "description": "Boilerplate adapter for Sails.js",
-  "main": "BoilerplateAdapter.js",
+  "main": "index.js",
   "scripts": {
     "test": "node test/integration/runner"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/balderdashy/sails-adapter-boilerplate.git"
+    "url": "https://github.com/YOUR_USERNAME/sails-YOUR_ADAPTER.git"
   },
   "keywords": [
-    "orm",
-    "waterline",
+    "KEYWORD_SPECIFIC_TO_YOUR_ADAPTER",
+    "KEYWORD_SPECIFIC_TO_YOUR_ADAPTER",
+    "adapter",
     "sails",
+    "waterline",
+    "orm",
     "sailsjs",
     "sails.js"
   ],
-  "author": "Your name here",
+  "author": "YOUR NAME <YOUR@EMAIL>",
   "license": "MIT",
   "readmeFilename": "README.md",
   "dependencies": {
-    "async": "0.1.22"
+    
   },
   "devDependencies": {
     "waterline-adapter-tests": "~0.9.4"
-  }
+  },
+  "sails-adapter": {
+    "interfaces": [
+      "semantic",
+      "queryable"
+    ]
+  },
 }
