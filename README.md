@@ -2,7 +2,12 @@
 
 # BoilerplateAdapter
 
-This template exists to make it easier for you to get started writing an official adapter for Sails.js.
+This template exists to make it easier for you to get started writing an adapter for Sails.js.
+
+> ### WARNING
+>
+> This version of the adapter is for the upcoming v0.10 release of Sails / Waterline.
+> Check out the 0.8 branch for the original stuff.
 
 
 ## Getting started
@@ -18,15 +23,20 @@ It's usually pretty easy to add your own adapters for integrating with proprieta
 3. Run `npm link sails-boilerplate`
 4. From the sails.js core directory, run `npm test`.
 
-## Submitting your adapter
-1. Do a pull request to this repository (make sure you attribute yourself as the author set the license in the package.json to "MIT")  Please let us know about any special instructions for usage/testing.
-2. We'll run the tests one last time.  If there are any issues, we'll let you know.
-3. When it's ready, we'll update the documentation with information about your new adapter
-4. Then we'll tweet and post about it on our blog, adoring you with lavish praises.
-5. Mike will send you jelly beans.
+## Publish your adapter
+
+> You're welcome to write proprietary adapters and use them any way you wish--
+> these instructions are for releasing an open-source adapter.
+
+1. Do a pull request to this repository (make sure you attribute yourself as the author set the license in the package.json to "MIT")  Please let us know about any special instructions for usage/testing. 
+2. Run the tests one last time.
+3. We'll update the documentation with information about your new adapter
+4. Then everyone will adore you with lavish praises.
+5. Mike might even send you jelly beans.
 
 
 ## About Sails.js and Waterline
-http://SailsJs.com
+http://sailsjs.org
 
 Waterline is a new kind of storage and retrieval engine for Sails.js.  It provides a uniform API for accessing stuff from different kinds of databases, protocols, and 3rd party APIs.  That means you write the same code to get users, whether they live in mySQL, LDAP, MongoDB, or Facebook.
+

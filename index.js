@@ -9,7 +9,7 @@ var adapter = module.exports = {
 
   // Set to true if this adapter supports (or requires) things like data types, validations, keys, etc.
   // If true, the schema for models using this adapter will be automatically synced when the server starts.
-  // Not terribly relevant if not using a non-SQL / non-schema-ed data store
+  // Not terribly relevant if your data store is not SQL/schemaful.
   syncable: false,
 
   // Including a commitLog config enables transactions in this adapter
@@ -62,23 +62,46 @@ var adapter = module.exports = {
 
 
   // REQUIRED method if integrating with a schemaful database
+
+  /**
+   * 
+   * @param  {[type]}   collectionName [description]
+   * @param  {[type]}   definition     [description]
+   * @param  {Function} cb             [description]
+   * @return {[type]}                  [description]
+   */
   define: function(collectionName, definition, cb) {
 
     // Define a new "table" or "collection" schema in the data store
     cb();
   },
-  // REQUIRED method if integrating with a schemaful database
+
+  /**
+   * 
+   * @param  {[type]}   collectionName [description]
+   * @param  {Function} cb             [description]
+   * @return {[type]}                  [description]
+   */
   describe: function(collectionName, cb) {
 
     // Respond with the schema (attributes) for a collection or table in the data store
     var attributes = {};
     cb(null, attributes);
   },
-  // REQUIRED method if integrating with a schemaful database
-  drop: function(collectionName, cb) {
+
+
+  /**
+   * 
+   * @param  {[type]}   collectionName [description]
+   * @param  {[type]}   relations      [description]
+   * @param  {Function} cb             [description]
+   * @return {[type]}                  [description]
+   */
+  drop: function(collectionName, relations, cb) {
     // Drop a "table" or "collection" schema from the data store
     cb();
   },
+
 
   // Optional override of built-in alter logic
   // Can be simulated with describe(), define(), and drop(),
@@ -88,8 +111,29 @@ var adapter = module.exports = {
   // cb(); 
   // },
 
+  /**
+   * Change a collection's metadata (e.g. tableName)
+   * 
+   * @param  {[type]}   collectionName [description]
+   * @param  {[type]}   changes        [description]
+   * @param  {Function} cb             [description]
+   * @return {[type]}                  [description]
+   */
+  alter: function (collectionName, changes, cb) {},
+  addAttribute: function(collectionName, attrName, attrDef, cb) {},
+  removeAttribute: function(collectionName, attrName, attrDef, cb) {},
+  alterAttribute: function(collectionName, attrName, attrDef, cb) {},
 
-  // REQUIRED method if users expect to call Model.create() or any methods
+
+  /**
+   *
+   * REQUIRED method if users expect to call Model.create() or any methods
+   * 
+   * @param  {[type]}   collectionName [description]
+   * @param  {[type]}   values         [description]
+   * @param  {Function} cb             [description]
+   * @return {[type]}                  [description]
+   */
   create: function(collectionName, values, cb) {
     // Create a single new model specified by values
 
@@ -97,10 +141,18 @@ var adapter = module.exports = {
     cb(null, values);
   },
 
-  // REQUIRED method if users expect to call Model.find(), Model.findAll() or related methods
-  // You're actually supporting find(), findAll(), and other methods here
-  // but the core will take care of supporting all the different usages.
-  // (e.g. if this is a find(), not a findAll(), it will only send back a single model)
+
+  /**
+   * 
+   * REQUIRED method if users expect to call Model.find(), Model.findOne() or related methods.
+   * You should implement find() (respond with an array of instances) here--
+   * Waterline core will take care of supporting all the different usages.
+   * 
+   * @param  {[type]}   collectionName [description]
+   * @param  {[type]}   options        [description]
+   * @param  {Function} cb             [description]
+   * @return {[type]}                  [description]
+   */
   find: function(collectionName, options, cb) {
 
     // ** Filter by criteria in options to generate result set
