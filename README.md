@@ -1,6 +1,6 @@
 ![image_squidhome@2x.png](http://i.imgur.com/RIvu9.png) 
 
-# BoilerplateAdapter
+# sails-adapter-boilerplate
 
 This template exists to make it easier for you to get started writing an adapter for Sails.js.
 
