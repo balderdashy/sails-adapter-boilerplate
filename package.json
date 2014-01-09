@@ -1,7 +1,7 @@
 {
   "name": "sails-YOUR_ADAPTER",
-  "version": "0.0.0",
-  "description": "Boilerplate adapter for Sails.js",
+  "version": "0.10.0",
+  "description": "YOUR_ADAPTER_DATASRC adapter for Sails / Waterline",
   "main": "index.js",
   "scripts": {
     "test": "node test/integration/runner -R spec -b"
