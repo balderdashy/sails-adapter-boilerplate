@@ -3,15 +3,17 @@
  */
 var util = require('util');
 var mocha = require('mocha');
+var log = new (require('captains-log'))();
 
 
 var TestRunner = require('waterline-adapter-tests');
 var Adapter = require('../../');
-var interfaces;
 
 
 
 // Grab targeted interfaces from this adapter's `package.json` file:
+var package = {};
+var interfaces = [];
 try {
     package = require('root-require')('package.json');
     interfaces = package['sailsAdapter'].implements;
@@ -24,6 +26,20 @@ catch (e) {
     util.inspect(e)
     );
 }
+
+
+
+
+
+log.info('Testing `' + package.name + '`, a Sails adapter.');
+log.info('Running `waterline-adapter-tests` against ' + interfaces.length + ' interfaces...');
+log.info('( ' + interfaces.join(', ') + ' )');
+console.log();
+log('Latest draft of Waterline adapter interface spec:');
+log('https://github.com/balderdashy/sails-docs/blob/master/adapter-specification.md');
+console.log();
+
+
 
 
 /**

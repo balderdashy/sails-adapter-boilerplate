@@ -4,7 +4,7 @@
   "description": "Boilerplate adapter for Sails.js",
   "main": "index.js",
   "scripts": {
-    "test": "node test/integration/runner"
+    "test": "node test/integration/runner -R spec -b"
   },
   "repository": {
     "type": "git",
@@ -27,13 +27,15 @@
   "devDependencies": {
     "waterline-adapter-tests": "git://github.com/balderdashy/waterline-adapter-tests.git#associations",
     "mocha": "*",
-    "root-require": "~0.2.0"
+    "root-require": "~0.2.0",
+    "captains-log": "~0.10.6"
   },
   "sailsAdapter": {
     "sailsVersion": "~0.10.0",
     "implements": [
       "semantic",
-      "queryable"
+      "queryable",
+      "associations"
     ]
   }
 }
