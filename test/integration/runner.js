@@ -1,8 +1,26 @@
 /**
  * Test runner dependencies
  */
+var util = require('util');
 var mocha = require('mocha');
 var TestRunner = require('waterline-adapter-tests');
+var interfaces;
+
+
+
+// Grab targeted interfaces from this adapter's `package.json` file:
+try {
+    package = require('root-require')('package.json');
+    interfaces = package['sails-adapter'].interfaces
+}
+catch (e) {
+    throw new Error(
+    '\n'+
+    'Could not read supported interfaces from "sails-adapter"."interfaces"'+'\n' +
+    'in this adapter\'s `package.json` file ::' + '\n' +
+    util.inspect(e)
+    );
+}
 
 
 /**
@@ -23,7 +41,8 @@ new TestRunner({
     },
 
     // The set of adapter interfaces to test against.
-    interfaces: ['semantic', 'queryable']
+    // (grabbed these from this adapter's package.json file above)
+    interfaces: interfaces
     
     // Most databases implement 'semantic' and 'queryable'.
     // 
