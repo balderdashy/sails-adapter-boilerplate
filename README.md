@@ -18,7 +18,7 @@ It's usually pretty easy to add your own adapters for integrating with proprieta
 3. Build your adapter.
 
 ## How to test your adapter
-1. Configure the interfaces you plan to support in `adapter.json`.
+1. Configure the interfaces you plan to support in the adapter's `package.json` file.
 2. In your adapter's directory, run `npm test`.
 
 
@@ -34,6 +34,9 @@ It's usually pretty easy to add your own adapters for integrating with proprieta
 5. We'll update the documentation with information about your new adapter
 6. Then everyone will adore you with lavish praises.  Mike might even send you jelly beans.
 
+7. Run `npm version patch`
+8. Run `git push && git push --tags`
+9. Run `npm publish`
 
 ## About Sails.js and Waterline
 http://sailsjs.org
