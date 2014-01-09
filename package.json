@@ -23,16 +23,17 @@
   "author": "YOUR NAME <YOUR@EMAIL>",
   "license": "MIT",
   "readmeFilename": "README.md",
-  "dependencies": {
-    
-  },
+  "dependencies": {},
   "devDependencies": {
-    "waterline-adapter-tests": "~0.9.4"
+    "waterline-adapter-tests": "git://github.com/balderdashy/waterline-adapter-tests.git#associations",
+    "mocha": "*",
+    "root-require": "~0.2.0"
   },
-  "sails-adapter": {
-    "interfaces": [
+  "sailsAdapter": {
+    "sailsVersion": "~0.10.0",
+    "implements": [
       "semantic",
       "queryable"
     ]
-  },
+  }
 }

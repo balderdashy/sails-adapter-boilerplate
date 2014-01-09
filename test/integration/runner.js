@@ -3,7 +3,10 @@
  */
 var util = require('util');
 var mocha = require('mocha');
+
+
 var TestRunner = require('waterline-adapter-tests');
+var Adapter = require('../../');
 var interfaces;
 
 
@@ -11,7 +14,7 @@ var interfaces;
 // Grab targeted interfaces from this adapter's `package.json` file:
 try {
     package = require('root-require')('package.json');
-    interfaces = package['sails-adapter'].interfaces
+    interfaces = package['sailsAdapter'].implements;
 }
 catch (e) {
     throw new Error(
@@ -33,7 +36,7 @@ catch (e) {
 new TestRunner({
 
     // Load the adapter module.
-    adapter: require('../../'),
+    adapter: Adapter,
 
     // Default adapter config to use.
     config: {

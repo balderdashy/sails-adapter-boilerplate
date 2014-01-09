@@ -405,7 +405,7 @@ module.exports = (function () {
 
 
   // Expose adapter definition
-  module.exports = adapter;
+  return adapter;
 
 })();
 
