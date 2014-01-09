@@ -14,6 +14,11 @@
  * If you don't need / can't get to every method, just implement
  * what you have time for.  The other methods will only fail if
  * you try to call them!
+ * 
+ * For many adapters, this file is all you need.  For very complex adapters, you may need more flexiblity.
+ * In any case, it's probably a good idea to start with one file and refactor only if necessary.
+ * If you do go that route, it's conventional in Node to create a `./lib` directory for your private submodules
+ * and load them at the top of the file with other dependencies.  e.g. var update = `require('./lib/update')`;
  */
 module.exports = (function () {
 
