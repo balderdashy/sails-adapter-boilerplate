@@ -18,8 +18,28 @@ It's usually pretty easy to add your own adapters for integrating with proprieta
 3. Build your adapter.
 
 ## How to test your adapter
-1. Configure the interfaces you plan to support in the adapter's `package.json` file.
-2. In your adapter's directory, run `npm test`.
+
+Configure the interfaces you plan to support (and targeted version of Sails/Waterline) in the adapter's `package.json` file:
+
+```javascript
+{
+  //...
+  "sailsAdapter": {
+    "sailsVersion": "~0.10.0",
+    "implements": [
+      "semantic",
+      "queryable",
+      "associations"
+    ]
+  }
+}
+```
+
+In your adapter's directory, run:
+
+```sh
+$ npm test
+```
 
 
 ## Publish your adapter
