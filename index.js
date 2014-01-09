@@ -1,275 +1,406 @@
-/*---------------------------------------------------------------
-  :: sails-boilerplate
-  -> adapter
----------------------------------------------------------------*/
+/**
+ * Module Dependencies
+ */
+// ...
 
-var async = require('async');
 
-var adapter = module.exports = {
 
-  // Set to true if this adapter supports (or requires) things like data types, validations, keys, etc.
-  // If true, the schema for models using this adapter will be automatically synced when the server starts.
-  // Not terribly relevant if your data store is not SQL/schemaful.
-  syncable: false,
 
-  // Including a commitLog config enables transactions in this adapter
-  // Please note that these are not ACID-compliant transactions: 
-  // They guarantee *ISOLATION*, and use a configurable persistent store, so they are *DURABLE* in the face of server crashes.
-  // However there is no scheduled task that rebuild state from a mid-step commit log at server start, so they're not CONSISTENT yet.
-  // and there is still lots of work to do as far as making them ATOMIC (they're not undoable right now)
+/**
+ * Sails Boilerplate Adapter
+ *
+ * Most of the methods below are optional.
+ * 
+ * If you don't need / can't get to every method, just implement
+ * what you have time for.  The other methods will only fail if
+ * you try to call them!
+ */
+module.exports = (function () {
+
+
+  // You'll want to maintain a reference to each collection
+  // (aka model) that gets registered with this adapter.
+  var _modelReferences = {};
+
+
+  
+  // You may also want to store additional, private data
+  // per-collection (esp. if your data store uses persistent
+  // connections).
   //
-  // However, for the immediate future, they do a great job of preventing race conditions, and are
-  // better than a naive solution.  They add the most value in findOrCreate() and createEach().
+  // Keep in mind that models can be configured to use different databases
+  // within the same app, at the same time.
   // 
-  // commitLog: {
-  //  identity: '__default_mongo_transaction',
-  //  adapter: 'sails-mongo'
-  // },
+  // i.e. if you're writing a MariaDB adapter, you should be aware that one
+  // model might be configured as `host="localhost"` and another might be using
+  // `host="foo.com"` at the same time.  Same thing goes for user, database, 
+  // password, or any other config.
+  //
+  // You don't have to support this feature right off the bat in your
+  // adapter, but it ought to get done eventually.
+  // 
+  // Sounds annoying to deal with...
+  // ...but it's not bad.  In each method, acquire a connection using the config
+  // for the current model (looking it up from `_modelReferences`), establish
+  // a connection, then tear it down before calling your method's callback.
+  // Finally, as an optimization, you might use a db pool for each distinct
+  // connection configuration, partioning pools for each separate configuration
+  // for your adapter (i.e. worst case scenario is a pool for each model, best case
+  // scenario is one single single pool.)  For many databases, any change to 
+  // host OR database OR user OR password = separate pool.
+  var _dbPools = {};
 
-  // Default configuration for collections
-  // (same effect as if these properties were included at the top level of the model definitions)
-  defaults: {
 
-    // For example:
-    // port: 3306,
-    // host: 'localhost'
 
-    // If setting syncable, you should consider the migrate option, 
-    // which allows you to set how the sync will be performed.
-    // It can be overridden globally in an app (config/adapters.js) and on a per-model basis.
+  var adapter = {
+
+    // Set to true if this adapter supports (or requires) things like data types, validations, keys, etc.
+    // If true, the schema for models using this adapter will be automatically synced when the server starts.
+    // Not terribly relevant if your data store is not SQL/schemaful.
+    syncable: false,
+
+
+    // Default configuration for collections
+    // (same effect as if these properties were included at the top level of the model definitions)
+    defaults: {
+
+      // For example:
+      // port: 3306,
+      // host: 'localhost',
+      // schema: true,
+      // ssl: false,
+      // customThings: ['eh']
+
+      // If setting syncable, you should consider the migrate option, 
+      // which allows you to set how the sync will be performed.
+      // It can be overridden globally in an app (config/adapters.js)
+      // and on a per-model basis.
+      // 
+      // IMPORTANT:
+      // `migrate` is not a production data migration solution!
+      // In production, always use `migrate: safe`
+      //
+      // drop   => Drop schema and data, then recreate it
+      // alter  => Drop/add columns as necessary.
+      // safe   => Don't change anything (good for production DBs)
+      migrate: 'alter'
+    },
+
+
+
+    /**
+     * 
+     * This method runs when a model is initially registered
+     * at server-start-time.  This is the only required method.
+     * 
+     * @param  {[type]}   collection [description]
+     * @param  {Function} cb         [description]
+     * @return {[type]}              [description]
+     */
+    registerCollection: function(collection, cb) {
+
+      // Keep a reference to this collection
+      _modelReferences[collection.identity] = collection;
+      
+      cb();
+    },
+
+
+    /**
+     * Fired when a model is unregistered, typically when the server
+     * is killed. Useful for tearing-down remaining open connections,
+     * etc.
+     * 
+     * @param  {Function} cb [description]
+     * @return {[type]}      [description]
+     */
+    teardown: function(cb) {
+      cb();
+    },
+
+
+
+    /**
+     * 
+     * REQUIRED method if integrating with a schemaful
+     * (SQL-ish) database.
+     * 
+     * @param  {[type]}   collectionName [description]
+     * @param  {[type]}   definition     [description]
+     * @param  {Function} cb             [description]
+     * @return {[type]}                  [description]
+     */
+    define: function(collectionName, definition, cb) {
+
+      // If you need to access your private data for this collection:
+      var collection = _modelReferences[collectionName];
+
+      // Define a new "table" or "collection" schema in the data store
+      cb();
+    },
+
+    /**
+     *
+     * REQUIRED method if integrating with a schemaful
+     * (SQL-ish) database.
+     * 
+     * @param  {[type]}   collectionName [description]
+     * @param  {Function} cb             [description]
+     * @return {[type]}                  [description]
+     */
+    describe: function(collectionName, cb) {
+
+      // If you need to access your private data for this collection:
+      var collection = _modelReferences[collectionName];
+
+      // Respond with the schema (attributes) for a collection or table in the data store
+      var attributes = {};
+      cb(null, attributes);
+    },
+
+
+    /**
+     *
+     *
+     * REQUIRED method if integrating with a schemaful
+     * (SQL-ish) database.
+     * 
+     * @param  {[type]}   collectionName [description]
+     * @param  {[type]}   relations      [description]
+     * @param  {Function} cb             [description]
+     * @return {[type]}                  [description]
+     */
+    drop: function(collectionName, relations, cb) {
+      // If you need to access your private data for this collection:
+      var collection = _modelReferences[collectionName];
+
+      // Drop a "table" or "collection" schema from the data store
+      cb();
+    },
+
+
+
+
+    // OVERRIDES NOT CURRENTLY FULLY SUPPORTED FOR:
+    // 
+    // alter: function (collectionName, changes, cb) {},
+    // addAttribute: function(collectionName, attrName, attrDef, cb) {},
+    // removeAttribute: function(collectionName, attrName, attrDef, cb) {},
+    // alterAttribute: function(collectionName, attrName, attrDef, cb) {},
+    // addIndex: function(indexName, options, cb) {},
+    // removeIndex: function(indexName, options, cb) {},
+
+
+
+    /**
+     * 
+     * REQUIRED method if users expect to call Model.find(), Model.findOne(),
+     * or related.
+     * 
+     * You should implement this method to respond with an array of instances.
+     * Waterline core will take care of supporting all the other different
+     * find methods/usages.
+     * 
+     * @param  {[type]}   collectionName [description]
+     * @param  {[type]}   options        [description]
+     * @param  {Function} cb             [description]
+     * @return {[type]}                  [description]
+     */
+    find: function(collectionName, options, cb) {
+
+      // If you need to access your private data for this collection:
+      var collection = _modelReferences[collectionName];
+
+      // Options object is normalized for you:
+      // 
+      // options.where
+      // options.limit
+      // options.skip
+      // options.sort
+      
+      // Filter, paginate, and sort records from the datastore.
+      // You should end up w/ an array of objects as a result.
+      // If no matches were found, this will be an empty array.
+
+      // Respond with an error, or the results.
+      cb(null, []);
+    },
+
+    /**
+     *
+     * REQUIRED method if users expect to call Model.create() or any methods
+     * 
+     * @param  {[type]}   collectionName [description]
+     * @param  {[type]}   values         [description]
+     * @param  {Function} cb             [description]
+     * @return {[type]}                  [description]
+     */
+    create: function(collectionName, values, cb) {
+      // If you need to access your private data for this collection:
+      var collection = _modelReferences[collectionName];
+
+      // Create a single new model (specified by `values`)
+
+      // Respond with error or the newly-created record.
+      cb(null, values);
+    },
+
+
+
+    // 
+
+    /**
+     *
+     * 
+     * REQUIRED method if users expect to call Model.update()
+     *
+     * @param  {[type]}   collectionName [description]
+     * @param  {[type]}   options        [description]
+     * @param  {[type]}   values         [description]
+     * @param  {Function} cb             [description]
+     * @return {[type]}                  [description]
+     */
+    update: function(collectionName, options, values, cb) {
+
+      // If you need to access your private data for this collection:
+      var collection = _modelReferences[collectionName];
+
+      // 1. Filter, paginate, and sort records from the datastore.
+      //    You should end up w/ an array of objects as a result.
+      //    If no matches were found, this will be an empty array.
+      //    
+      // 2. Update all result records with `values`.
+      // 
+      // (do both in a single query if you can-- it's faster)
+
+      // Respond with error or an array of updated records.
+      cb(null, []);
+    },
+ 
+    /**
+     *
+     * REQUIRED method if users expect to call Model.destroy()
+     * 
+     * @param  {[type]}   collectionName [description]
+     * @param  {[type]}   options        [description]
+     * @param  {Function} cb             [description]
+     * @return {[type]}                  [description]
+     */
+    destroy: function(collectionName, options, cb) {
+
+      // If you need to access your private data for this collection:
+      var collection = _modelReferences[collectionName];
+
+
+      // 1. Filter, paginate, and sort records from the datastore.
+      //    You should end up w/ an array of objects as a result.
+      //    If no matches were found, this will be an empty array.
+      //    
+      // 2. Destroy all result records.
+      // 
+      // (do both in a single query if you can-- it's faster)
+
+      // Return an error, otherwise it's declared a success.
+      cb();
+    },
+
+
+
+    /*
+    **********************************************
+    * Optional overrides
+    **********************************************
+
+    // Optional override of built-in batch create logic for increased efficiency
+    // (since most databases include optimizations for pooled queries, at least intra-connection)
+    // otherwise, Waterline core uses create()
+    createEach: function (collectionName, arrayOfObjects, cb) { cb(); },
+
+    // Optional override of built-in findOrCreate logic for increased efficiency
+    // (since most databases include optimizations for pooled queries, at least intra-connection)
+    // otherwise, uses find() and create()
+    findOrCreate: function (collectionName, arrayOfAttributeNamesWeCareAbout, newAttributesObj, cb) { cb(); },
+    */
+
+
+    /*
+    **********************************************
+    * Custom methods
+    **********************************************
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////
     //
-    // drop   => Drop schema and data, then recreate it
-    // alter  => Drop/add columns as necessary, but try 
-    // safe   => Don't change anything (good for production DBs)
-    migrate: 'alter'
-  },
-
-  // This method runs when a model is initially registered at server start time
-  registerCollection: function(collection, cb) {
-
-    cb();
-  },
-
-
-  // The following methods are optional
-  ////////////////////////////////////////////////////////////
-
-  // Optional hook fired when a model is unregistered, typically at server halt
-  // useful for tearing down remaining open connections, etc.
-  teardown: function(cb) {
-    cb();
-  },
+    // > NOTE:  There are a few gotchas here you should be aware of.
+    //
+    //    + The collectionName argument is always prepended as the first argument.
+    //      This is so you can know which model is requesting the adapter.
+    //
+    //    + All adapter functions are asynchronous, even the completely custom ones,
+    //      and they must always include a callback as the final argument.
+    //      The first argument of callbacks is always an error object.
+    //      For core CRUD methods, Waterline will add support for .done()/promise usage.
+    //
+    //    + The function signature for all CUSTOM adapter methods below must be:
+    //      `function (collectionName, options, cb) { ... }`
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-  // REQUIRED method if integrating with a schemaful database
+    // Custom methods defined here will be available on all models
+    // which are hooked up to this adapter:
+    //
+    // e.g.:
+    //
+    foo: function (collectionName, options, cb) {
+      return cb(null,"ok");
+    },
+    bar: function (collectionName, options, cb) {
+      if (!options.jello) return cb("Failure!");
+      else return cb();
+    }
 
-  /**
-   * 
-   * @param  {[type]}   collectionName [description]
-   * @param  {[type]}   definition     [description]
-   * @param  {Function} cb             [description]
-   * @return {[type]}                  [description]
-   */
-  define: function(collectionName, definition, cb) {
-
-    // Define a new "table" or "collection" schema in the data store
-    cb();
-  },
-
-  /**
-   * 
-   * @param  {[type]}   collectionName [description]
-   * @param  {Function} cb             [description]
-   * @return {[type]}                  [description]
-   */
-  describe: function(collectionName, cb) {
-
-    // Respond with the schema (attributes) for a collection or table in the data store
-    var attributes = {};
-    cb(null, attributes);
-  },
+    // So if you have three models:
+    // Tiger, Sparrow, and User
+    // 2 of which (Tiger and Sparrow) implement this custom adapter,
+    // then you'll be able to access:
+    //
+    // Tiger.foo(...)
+    // Tiger.bar(...)
+    // Sparrow.foo(...)
+    // Sparrow.bar(...)
 
 
-  /**
-   * 
-   * @param  {[type]}   collectionName [description]
-   * @param  {[type]}   relations      [description]
-   * @param  {Function} cb             [description]
-   * @return {[type]}                  [description]
-   */
-  drop: function(collectionName, relations, cb) {
-    // Drop a "table" or "collection" schema from the data store
-    cb();
-  },
+    // Example success usage:
+    //
+    // (notice how the first argument goes away:)
+    Tiger.foo({}, function (err, result) {
+      if (err) return console.error(err);
+      else console.log(result);
+
+      // outputs: ok
+    });
+
+    // Example error usage:
+    //
+    // (notice how the first argument goes away:)
+    Sparrow.bar({test: 'yes'}, function (err, result){
+      if (err) console.error(err);
+      else console.log(result);
+
+      // outputs: Failure!
+    })
 
 
-  // Optional override of built-in alter logic
-  // Can be simulated with describe(), define(), and drop(),
-  // but will probably be made much more efficient by an override here
-  // alter: function (collectionName, attributes, cb) { 
-  // Modify the schema of a table or collection in the data store
-  // cb(); 
-  // },
+    
 
-  /**
-   * Change a collection's metadata (e.g. tableName)
-   * 
-   * @param  {[type]}   collectionName [description]
-   * @param  {[type]}   changes        [description]
-   * @param  {Function} cb             [description]
-   * @return {[type]}                  [description]
-   */
-  alter: function (collectionName, changes, cb) {},
-  addAttribute: function(collectionName, attrName, attrDef, cb) {},
-  removeAttribute: function(collectionName, attrName, attrDef, cb) {},
-  alterAttribute: function(collectionName, attrName, attrDef, cb) {},
+    */
 
 
-  /**
-   *
-   * REQUIRED method if users expect to call Model.create() or any methods
-   * 
-   * @param  {[type]}   collectionName [description]
-   * @param  {[type]}   values         [description]
-   * @param  {Function} cb             [description]
-   * @return {[type]}                  [description]
-   */
-  create: function(collectionName, values, cb) {
-    // Create a single new model specified by values
-
-    // Respond with error or newly created model instance
-    cb(null, values);
-  },
+  };
 
 
-  /**
-   * 
-   * REQUIRED method if users expect to call Model.find(), Model.findOne() or related methods.
-   * You should implement find() (respond with an array of instances) here--
-   * Waterline core will take care of supporting all the different usages.
-   * 
-   * @param  {[type]}   collectionName [description]
-   * @param  {[type]}   options        [description]
-   * @param  {Function} cb             [description]
-   * @return {[type]}                  [description]
-   */
-  find: function(collectionName, options, cb) {
+  // Expose adapter definition
+  module.exports = adapter;
 
-    // ** Filter by criteria in options to generate result set
+})();
 
-    // Respond with an error or a *list* of models in result set
-    cb(null, []);
-  },
-
-  // REQUIRED method if users expect to call Model.update()
-  update: function(collectionName, options, values, cb) {
-
-    // ** Filter by criteria in options to generate result set
-
-    // Then update all model(s) in the result set
-
-    // Respond with error or a *list* of models that were updated
-    cb();
-  },
-
-  // REQUIRED method if users expect to call Model.destroy()
-  destroy: function(collectionName, options, cb) {
-
-    // ** Filter by criteria in options to generate result set
-
-    // Destroy all model(s) in the result set
-
-    // Return an error or nothing at all
-    cb();
-  },
-
-
-
-  // REQUIRED method if users expect to call Model.stream()
-  stream: function(collectionName, options, stream) {
-    // options is a standard criteria/options object (like in find)
-
-    // stream.write() and stream.end() should be called.
-    // for an example, check out:
-    // https://github.com/balderdashy/sails-dirty/blob/master/DirtyAdapter.js#L247
-
-  }
-
-
-
-  /*
-  **********************************************
-  * Optional overrides
-  **********************************************
-
-  // Optional override of built-in batch create logic for increased efficiency
-  // otherwise, uses create()
-  createEach: function (collectionName, cb) { cb(); },
-
-  // Optional override of built-in findOrCreate logic for increased efficiency
-  // otherwise, uses find() and create()
-  findOrCreate: function (collectionName, cb) { cb(); },
-
-  // Optional override of built-in batch findOrCreate logic for increased efficiency
-  // otherwise, uses findOrCreate()
-  findOrCreateEach: function (collectionName, cb) { cb(); }
-  */
-
-
-  /*
-  **********************************************
-  * Custom methods
-  **********************************************
-
-  ////////////////////////////////////////////////////////////////////////////////////////////////////
-  //
-  // > NOTE:  There are a few gotchas here you should be aware of.
-  //
-  //    + The collectionName argument is always prepended as the first argument.
-  //      This is so you can know which model is requesting the adapter.
-  //
-  //    + All adapter functions are asynchronous, even the completely custom ones,
-  //      and they must always include a callback as the final argument.
-  //      The first argument of callbacks is always an error object.
-  //      For some core methods, Sails.js will add support for .done()/promise usage.
-  //
-  //    + 
-  //
-  ////////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-  // Any other methods you include will be available on your models
-  foo: function (collectionName, cb) {
-    cb(null,"ok");
-  },
-  bar: function (collectionName, baz, watson, cb) {
-    cb("Failure!");
-  }
-
-
-  // Example success usage:
-
-  Model.foo(function (err, result) {
-    if (err) console.error(err);
-    else console.log(result);
-
-    // outputs: ok
-  })
-
-  // Example error usage:
-
-  Model.bar(235, {test: 'yes'}, function (err, result){
-    if (err) console.error(err);
-    else console.log(result);
-
-    // outputs: Failure!
-  })
-
-  */
-
-
-};
-
-//////////////                 //////////////////////////////////////////
-////////////// Private Methods //////////////////////////////////////////
-//////////////                 //////////////////////////////////////////

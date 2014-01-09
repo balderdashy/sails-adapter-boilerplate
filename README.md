@@ -28,11 +28,12 @@ It's usually pretty easy to add your own adapters for integrating with proprieta
 > You're welcome to write proprietary adapters and use them any way you wish--
 > these instructions are for releasing an open-source adapter.
 
-1. Do a pull request to this repository (make sure you attribute yourself as the author set the license in the package.json to "MIT")  Please let us know about any special instructions for usage/testing. 
-2. Run the tests one last time.
-3. We'll update the documentation with information about your new adapter
-4. Then everyone will adore you with lavish praises.
-5. Mike might even send you jelly beans.
+1. Create a [new public repo](https://github.com/new) and add it as a remote (`git remote add origin git@github.com:yourusername/sails-youradaptername.git)
+2. Make sure you attribute yourself as the author and set the license in the package.json to "MIT".
+3. Run the tests one last time.
+4. Do a [pull request to sails-docs](https://github.com/balderdashy/sails-docs/compare/) adding your repo to `data/adapters.js`.  Please let us know about any special instructions for usage/testing. 
+5. We'll update the documentation with information about your new adapter
+6. Then everyone will adore you with lavish praises.  Mike might even send you jelly beans.
 
 
 ## About Sails.js and Waterline
