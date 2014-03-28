@@ -25,7 +25,7 @@
   "readmeFilename": "README.md",
   "dependencies": {
     "async": "0.1.22",
-    "neo4j-js": "https://github.com/natgeo/neo4j-js",
+    "neo4j-js": "git+https://github.com/natgeo/neo4j-js.git",
     "q": "~0.9.7"
   },
   "devDependencies": {
