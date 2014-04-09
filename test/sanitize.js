@@ -20,7 +20,7 @@ describe('isCypher should return True or False if the string contains any cypher
 
     it('Should return False for params object with multiple params and Cypher Keywords', function () {
         var adapter = require('../lib/adapter.js');
-        params = {i: '/app_model/12_MATCH/12/', x: 'something', t: { z: 'test', y: 'START n=node(1)'} };
+        params = {i: '/app_model/COUNT/12/', x: 'something', t: { z: 'test', y: 'START n=node(1)'} };
         o = adapter.sanitized(params);
         assert.equal(o, false);
     });
