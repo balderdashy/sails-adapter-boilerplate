@@ -1,6 +1,6 @@
 {
   "name": "sails-neo4j",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Neo4j adapter for Sails.js",
   "main": "lib/adapter.js",
   "scripts": {
@@ -26,7 +26,8 @@
   "dependencies": {
     "async": "0.1.22",
     "neo4j-js": "git+https://github.com/natgeo/neo4j-js.git",
-    "q": "~0.9.7"
+    "q": "~0.9.7",
+    "lodash": "^2.4.1"
   },
   "devDependencies": {
     "mocha": "~1.15.1"
