@@ -8,8 +8,7 @@ describe('Creating Nodes', function () {
         var connection = {
 			identity: 'neo4j'
 		};
-		adapter.registerConnection(connection,null,function(){});
-        done();
+		adapter.registerConnection(connection,null,done);
     });
 
 	it('should create one node with a property test = "1"', function (done) {
