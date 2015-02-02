@@ -1,11 +1,18 @@
-var assert = require('assert');
+var assert = require('assert'),
+	adapter = require('../lib/adapter.js');
 
 describe('Creating Nodes', function () {
 	var nodes = [];
+
+ 	before(function(done) {
+        var connection = {
+			identity: 'neo4j'
+		};
+		adapter.registerConnection(connection,null,done);
+    });
+
 	it('should create one node with a property test = "1"', function (done) {
-		var adapter = require('../lib/adapter.js');
-		adapter.createConnection();
-		adapter.create(null, { test: 1 }, function(err, results) {
+		adapter.create("neo4j", null, { test: 1 }, function(err, results) {
 			if (err) { throw err; }
 			nodes.push(results);
 			done();
@@ -13,9 +20,7 @@ describe('Creating Nodes', function () {
 	});
 
 	it('should create multiple nodes with the property test = "1"', function(done) {
-		var adapter = require('../lib/adapter.js');
-		adapter.createConnection();
-		adapter.createMany(null,{params:[{ test: 1 },{ test: 1 }]}, function(err, results) {
+		adapter.createMany("neo4j", null,{params:[{ test: 1 },{ test: 1 }]}, function(err, results) {
 			if (err) { throw err; }
 			nodes.push(results);
 			done();
