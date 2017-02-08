@@ -4,19 +4,10 @@
 
 This template exists to make it easier for you to get started writing an adapter for Sails.js.
 
-> ### Generator now available
->
-> `$ sails generate adapter foo`
->
-> (see https://github.com/balderdashy/sails-generate-adapter for the source.)
-
-
-
-
 > ### WARNING
 >
-> This version of the adapter is for the upcoming v0.10 release of Sails / Waterline.
-> Check out the 0.8 branch for the original stuff.
+> This adapter boilplate is for the v0.10 release of Sails / Waterline.
+> **Check out the [section on custom adapters in the Sails docs](http://sailsjs.com/documentation/concepts/extending-sails/adapters/custom-adapters) for up-to-date information on building adapters with the latest version of Sails.**  (Or for <=Sails 0.9, check out the 0.8 branch of the repo for the original boilerplate from 2012.)
 
 
 
