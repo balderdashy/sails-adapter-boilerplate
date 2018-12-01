@@ -4,7 +4,7 @@
   "description": "Boilerplate adapter for Sails.js",
   "main": "lib/adapter",
   "scripts": {
-    "test": "echo \"Adapter should be tested using Sails.js core.\" && exit 1"
+    "test": "make test"
   },
   "repository": {
     "type": "git",
@@ -22,15 +22,12 @@
   "readmeFilename": "README.md",
   "dependencies": {
     "async": "~0.2.9",
-    "sqlite3": "~2.1.x",
+    "sqlite3": "~4.0.x",
     "underscore": "1.5.2"
   },
   "devDependencies": {
     "mocha": "*",
     "should": "*",
     "waterline-adapter-tests": "~0.9.4"
-  },
-  "scripts": {
-    "test": "make test"
   }
 }
