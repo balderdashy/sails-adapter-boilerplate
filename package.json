@@ -30,5 +30,15 @@
     "mocha": "*",
     "should": "*",
     "waterline-adapter-tests": "~0.9.4"
+  },
+  "sails": {
+    "adapter": {
+      "sailsVersion": "^1.0.0",
+      "implements": [
+        "semantic",
+        "queryable",
+        "migratable"
+      ]
+    }
   }
 }
