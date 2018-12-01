@@ -13,6 +13,7 @@ const fs = require('fs');
 
 const _ = require('@sailshq/lodash');
 const sqlite3 = require('sqlite3');
+const Errors = require('waterline-errors').adapter;
 
 const Query = require('./query');
 const utils = require('./utils');
