@@ -23,7 +23,8 @@
   "dependencies": {
     "async": "~0.2.9",
     "sqlite3": "~4.0.x",
-    "underscore": "1.5.2"
+    "underscore": "1.5.2",
+    "waterline-errors": "^0.10.1"
   },
   "devDependencies": {
     "mocha": "*",
