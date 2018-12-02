@@ -161,14 +161,21 @@ module.exports = {
       config: datastoreConfig,
       manager: {
         physicalModelsReport, //for reference
-        schemas: {},
+        schema: {},
         foreignKeys: utils.buildForeignKeyMap(physicalModelsReport)
-      }, //temporarily store this here until I know what to do with it...
-      driver: undefined // << TODO: include driver here (if relevant)
+      },
+      // driver: undefined // << TODO: include driver here (if relevant)
     };
 
-    return done();
+    try {
+      for (let tableName in physicalModelsReport) {
+        await wrapAsyncStatements(this.describe.bind(this, datastoreName, tableName));
+      }
+    } catch (err) {
+      done(err);
+    }
 
+    return done();
   },
 
 
@@ -619,6 +626,7 @@ module.exports = {
 
       try {
         const schema = await wrapAsyncStatements(client.get.bind(client, query));
+        if (!schema) return Promise.resolve();
 
         // Query to get information about each table
         // See: http://www.sqlite.org/pragma.html#pragma_table_info
@@ -677,7 +685,7 @@ module.exports = {
 
         var normalizedSchema = utils.normalizeSchema(schema);
         // Set internal schema mapping
-        dataStore.schemas[tableName] = normalizedSchema;
+        dataStore.schema[tableName] = normalizedSchema;
 
         return Promise.resolve(normalizedSchema);
       } catch (err) {
@@ -744,6 +752,7 @@ module.exports = {
         }));
       });
 
+      datastore.schema[tableName] = definition;
       done();
     } catch (err) {
       done(err);
@@ -787,6 +796,7 @@ module.exports = {
         await wrapAsyncStatements(client.run.bind(client, query));
       });
 
+      delete dsEntry.schema[tableName];
       done();
     } catch (err) {
       done(err);
