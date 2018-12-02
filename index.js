@@ -4,6 +4,12 @@
   -> adapter
 
   Code refactored for Sails 1.0.0 release
+
+  Supports Migratable interface, but (as docs on this interface
+  stipulate) this should only be used for dev. This adapter
+  does not implement the majority of possibly desired
+  constraints since the waterline auto-migration is intended
+  to be light and quick
 ---------------------------------------------------------------*/
 /**
  * Module dependencies
@@ -154,8 +160,9 @@ module.exports = {
     registeredDatastores[datastoreName] = {
       config: datastoreConfig,
       manager: {
-        physicalModelsReport,
-        schemas: {}
+        physicalModelsReport, //for reference
+        schemas: {},
+        foreignKeys: utils.buildForeignKeyMap(physicalModelsReport)
       }, //temporarily store this here until I know what to do with it...
       driver: undefined // << TODO: include driver here (if relevant)
     };
@@ -718,7 +725,7 @@ module.exports = {
         const escapedTable = utils.escapeTable(tableName);
 
         // Iterate through each attribute, building a query string
-        const _schema = utils.buildSchema(definition);
+        const _schema = utils.buildSchema(definition, datastore.manager.foreignKeys[tableName]);
 
         // Check for any index attributes
         const indices = utils.buildIndexes(definition);
@@ -732,7 +739,7 @@ module.exports = {
           // Build a query to create a namespaced index tableName_key
           var query = 'CREATE INDEX ' + tableName + '_' + index + ' on ' +
             tableName + ' (' + index + ');';
-          
+
           await wrapAsyncStatements(client.run.bind(client, query));
         }));
       });
@@ -797,8 +804,10 @@ module.exports = {
    *
    * (This is used for schema migrations.)
    *
-   * > NOTE - If your adapter doesn't support sequence entities (like PostgreSQL),
-   * > you should remove this method.
+   * > NOTE - removing method. SQLite can support setting a sequence on
+   * > primary key fields (or other autoincrement fields), however the
+   * > need is slim and I don't have time.
+   * > Leaving shell here for future developers if necessary
    * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
    * @param  {String}       datastoreName   The name of the datastore containing the table/etc.
    * @param  {String}       sequenceName    The name of the sequence to update.
@@ -808,26 +817,26 @@ module.exports = {
    *               @param {Error?}
    * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
    */
-  setSequence: function (datastoreName, sequenceName, sequenceValue, done) {
+  // setSequence: function (datastoreName, sequenceName, sequenceValue, done) {
 
-    // Look up the datastore entry (manager/driver/config).
-    var dsEntry = registeredDatastores[datastoreName];
+  //   // Look up the datastore entry (manager/driver/config).
+  //   var dsEntry = registeredDatastores[datastoreName];
 
-    // Sanity check:
-    if (_.isUndefined(dsEntry)) {
-      return done(new Error('Consistency violation: Cannot do that with datastore (`'+datastoreName+'`) because no matching datastore entry is registered in this adapter!  This is usually due to a race condition (e.g. a lifecycle callback still running after the ORM has been torn down), or it could be due to a bug in this adapter.  (If you get stumped, reach out at https://sailsjs.com/support.)'));
-    }
+  //   // Sanity check:
+  //   if (_.isUndefined(dsEntry)) {
+  //     return done(new Error('Consistency violation: Cannot do that with datastore (`'+datastoreName+'`) because no matching datastore entry is registered in this adapter!  This is usually due to a race condition (e.g. a lifecycle callback still running after the ORM has been torn down), or it could be due to a bug in this adapter.  (If you get stumped, reach out at https://sailsjs.com/support.)'));
+  //   }
 
-    // Update the sequence.
-    //
-    // > TODO: Replace this setTimeout with real logic that calls
-    // > `done()` when finished. (Or remove this method from the
-    // > adapter altogether
-    setTimeout(function(){
-      return done(new Error('Adapter method (`setSequence`) not implemented yet.'));
-    }, 16);
+  //   // Update the sequence.
+  //   //
+  //   // > TODO: Replace this setTimeout with real logic that calls
+  //   // > `done()` when finished. (Or remove this method from the
+  //   // > adapter altogether
+  //   setTimeout(function(){
+  //     return done(new Error('Adapter method (`setSequence`) not implemented yet.'));
+  //   }, 16);
 
-  },
+  // },
 };
 
 /**
