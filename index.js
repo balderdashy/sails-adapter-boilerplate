@@ -766,10 +766,13 @@ module.exports = {
     }
 
     // Build query
-    var query = 'DROP TABLE ' + utils.escapeTable(table);
+    const query = 'DROP TABLE ' + utils.escapeTable(tableName);
+
 
     try {
-      await wrapAsyncStatements(client.run.bind(client, query));
+      await spawnConnection(dsEntry, async function __DROP__(client) {
+        await wrapAsyncStatements(client.run.bind(client, query));
+      });
 
       done();
     } catch (err) {
