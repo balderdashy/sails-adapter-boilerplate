@@ -15,8 +15,8 @@ const _ = require('@sailshq/lodash');
 const sqlite3 = require('sqlite3');
 const Errors = require('waterline-errors').adapter;
 
-const Query = require('./query');
-const utils = require('./utils');
+const Query = require('./lib/query');
+const utils = require('./lib/utils');
 
 
 /**
@@ -765,14 +765,16 @@ module.exports = {
       return done(new Error('Consistency violation: Cannot do that with datastore (`'+datastoreName+'`) because no matching datastore entry is registered in this adapter!  This is usually due to a race condition (e.g. a lifecycle callback still running after the ORM has been torn down), or it could be due to a bug in this adapter.  (If you get stumped, reach out at https://sailsjs.com/support.)'));
     }
 
-    // Drop the physical model (e.g. table/etc.)
-    //
-    // > TODO: Replace this setTimeout with real logic that calls
-    // > `done()` when finished. (Or remove this method from the
-    // > adapter altogether
-    setTimeout(function(){
-      return done(new Error('Adapter method (`drop`) not implemented yet.'));
-    }, 16);
+    // Build query
+    var query = 'DROP TABLE ' + utils.escapeTable(table);
+
+    try {
+      await wrapAsyncStatements(client.run.bind(client, query));
+
+      done();
+    } catch (err) {
+      done(err);
+    }
 
   },
 
