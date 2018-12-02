@@ -735,7 +735,7 @@ module.exports = {
 
         await wrapAsyncStatements(client.run.bind(client, query));
 
-        await Promise.all(indices.forEach(async index => {
+        await Promise.all(indices.map(async index => {
           // Build a query to create a namespaced index tableName_key
           var query = 'CREATE INDEX ' + tableName + '_' + index + ' on ' +
             tableName + ' (' + index + ');';
