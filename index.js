@@ -58,7 +58,7 @@ module.exports = {
 
 
   // The identity of this adapter, to be referenced by datastore configurations in a Sails app.
-  identity: 'sqlite-3',
+  identity: 'sails-sqlite3',
 
 
   // Waterline Adapter API Version
@@ -605,7 +605,7 @@ module.exports = {
    */
   describe: async function describe(datastoreName, tableName, cb, meta) {
     var datastore = datastores[datastoreName];
-    spawnConnection(datastore, function __DESCRIBE__(client) {
+    spawnConnection(datastore, async function __DESCRIBE__(client) {
       // Get a list of all the tables in this database
       // See: http://www.sqlite.org/faq.html#q7)
       var query = 'SELECT * FROM sqlite_master WHERE type="table" AND name="' + table + '" ORDER BY name';
@@ -697,24 +697,44 @@ module.exports = {
    *               @param {Error?}
    * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
    */
-  define: function (datastoreName, tableName, definition, done) {
+  define: async function (datastoreName, tableName, definition, done) {
 
     // Look up the datastore entry (manager/driver/config).
-    var dsEntry = registeredDatastores[datastoreName];
+    var datastore = registeredDatastores[datastoreName];
 
     // Sanity check:
-    if (_.isUndefined(dsEntry)) {
+    if (_.isUndefined(datastore)) {
       return done(new Error('Consistency violation: Cannot do that with datastore (`'+datastoreName+'`) because no matching datastore entry is registered in this adapter!  This is usually due to a race condition (e.g. a lifecycle callback still running after the ORM has been torn down), or it could be due to a bug in this adapter.  (If you get stumped, reach out at https://sailsjs.com/support.)'));
     }
 
-    // Define the physical model (e.g. table/etc.)
-    //
-    // > TODO: Replace this setTimeout with real logic that calls
-    // > `done()` when finished. (Or remove this method from the
-    // > adapter altogether
-    setTimeout(function(){
-      return done(new Error('Adapter method (`define`) not implemented yet.'));
-    }, 16);
+    try {
+      await spawnConnection(datastore, async function __DEFINE__(client){
+        const escapedTable = utils.escapeTable(tableName);
+
+        // Iterate through each attribute, building a query string
+        const _schema = utils.buildSchema(definition);
+
+        // Check for any index attributes
+        const indices = utils.buildIndexes(definition);
+
+        // Build query
+        const query = 'CREATE TABLE ' + escapedTable + ' (' + _schema + ')';
+
+        await wrapAsyncStatements(client.run.bind(client, query));
+
+        await Promise.all(indices.forEach(async index => {
+          // Build a query to create a namespaced index tableName_key
+          var query = 'CREATE INDEX ' + tableName + '_' + index + ' on ' +
+            tableName + ' (' + index + ');';
+          
+          await wrapAsyncStatements(client.run.bind(client, query));
+        }));
+      });
+
+      done();
+    } catch (err) {
+      done(err);
+    }
 
   },
 
