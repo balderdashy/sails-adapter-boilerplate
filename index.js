@@ -755,7 +755,7 @@ module.exports = {
    *               @param {Error?}
    * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
    */
-  drop: function (datastoreName, tableName, unused, done) {
+  drop: async function (datastoreName, tableName, unused, done) {
 
     // Look up the datastore entry (manager/driver/config).
     var dsEntry = registeredDatastores[datastoreName];
