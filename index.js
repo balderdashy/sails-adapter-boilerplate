@@ -698,6 +698,12 @@ module.exports = {
    * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
    */
   define: async function (datastoreName, tableName, definition, done) {
+    /****************************************************************
+     * NOTICE:
+     * This function is broken. util.buildSchema does not read
+     * defintion objects correctly for Waterline API Version 1
+     ****************************************************************/
+
 
     // Look up the datastore entry (manager/driver/config).
     var datastore = registeredDatastores[datastoreName];
@@ -766,7 +772,7 @@ module.exports = {
     }
 
     // Build query
-    const query = 'DROP TABLE ' + utils.escapeTable(tableName);
+    const query = 'DROP TABLE IF EXISTS ' + utils.escapeTable(tableName);
 
 
     try {
@@ -834,6 +840,7 @@ module.exports = {
  * @return Promise
  */
 function spawnConnection(datastore, logic) {
+  let client;
   return new Promise((resolve, reject) => {
     if (!datastore) reject(Errors.InvalidConnection);
 
@@ -848,7 +855,7 @@ function spawnConnection(datastore, logic) {
     exists = fs.existsSync(datastoreConfig.filename);
 
     // Create a new handle to our database
-    var client = new sqlite3.Database(
+    client = new sqlite3.Database(
       datastoreConfig.filename,
       datastoreConfig.mode,
       err => {
