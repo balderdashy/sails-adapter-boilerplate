@@ -160,10 +160,10 @@ module.exports = {
     registeredDatastores[datastoreName] = {
       config: datastoreConfig,
       manager: {
-        physicalModelsReport, //for reference
+        models: physicalModelsReport, //for reference
         schemas: {},
         foreignKeys: utils.buildForeignKeyMap(physicalModelsReport)
-      }, //temporarily store this here until I know what to do with it...
+      },
       driver: undefined // << TODO: include driver here (if relevant)
     };
 
@@ -731,7 +731,7 @@ module.exports = {
         const indices = utils.buildIndexes(definition);
 
         // Build query
-        const query = 'CREATE TABLE ' + escapedTable + ' (' + _schema + ')';
+        const query = 'CREATE TABLE ' + escapedTable + ' (' + _schema.declaration + ')';
 
         await wrapAsyncStatements(client.run.bind(client, query));
 
@@ -742,6 +742,9 @@ module.exports = {
 
           await wrapAsyncStatements(client.run.bind(client, query));
         }));
+
+        // Replacing if it already existed
+        datastore.schemas[tableName] = _schema.schema;
       });
 
       done();
@@ -786,6 +789,8 @@ module.exports = {
       await spawnConnection(dsEntry, async function __DROP__(client) {
         await wrapAsyncStatements(client.run.bind(client, query));
       });
+
+      delete dsEntry.schemas[tableName];
 
       done();
     } catch (err) {
