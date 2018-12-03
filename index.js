@@ -261,7 +261,7 @@ module.exports = {
     }
 
     try {
-      await spawnConnection(dsEntry, client => {
+      await spawnConnection(dsEntry, async client => {
         const tableName = query.using;
         const escapedTable = utils.escapeTable(tableName);
 
