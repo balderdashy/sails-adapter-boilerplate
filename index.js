@@ -250,7 +250,7 @@ module.exports = {
    *               @param {Dictionary?}
    * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
    */
-  create: function (datastoreName, query, done) {
+  create: async function (datastoreName, query, done) {
 
     // Look up the datastore entry (manager/driver/config).
     var dsEntry = registeredDatastores[datastoreName];
@@ -260,14 +260,32 @@ module.exports = {
       return done(new Error('Consistency violation: Cannot do that with datastore (`'+datastoreName+'`) because no matching datastore entry is registered in this adapter!  This is usually due to a race condition (e.g. a lifecycle callback still running after the ORM has been torn down), or it could be due to a bug in this adapter.  (If you get stumped, reach out at https://sailsjs.com/support.)'));
     }
 
-    // Perform the query (and if relevant, send back a result.)
-    //
-    // > TODO: Replace this setTimeout with real logic that calls
-    // > `done()` when finished. (Or remove this method from the
-    // > adapter altogether
-    setTimeout(function(){
-      return done(new Error('Adapter method (`create`) not implemented yet.'));
-    }, 16);
+    try {
+      await spawnConnection(dsEntry, client => {
+        const tableName = query.using;
+        const escapedTable = utils.escapeTable(tableName);
+
+        const attributes = utils.mapAttributes(query.newRecord, dsEntry.schema[tableName]);
+
+        const columnNames = attributes.keys.join(', ');
+        const paramValues = attributes.params.join(', ');
+
+        // Build query
+        var insertQuery = 'INSERT INTO ' + escapedTable + ' (' + columnNames + ') values (' + paramValues + ')';
+        var selectQuery = 'SELECT * FROM ' + escapedTable + ' ORDER BY rowid DESC LIMIT 1';
+
+        // first insert values
+        await wrapAsyncStatements(client.run.bind(client, insertQuery));
+
+        // get the last inserted row
+        const newRow = await wrapAsyncStatements(client.get.bind(client, selectQuery));
+
+        throw new Error('Did not finish casting from SQLite to Waterline type');
+        done(undefined, newRow);
+      });
+    } catch (err) {
+      done(err);
+    }
 
   },
 
