@@ -60,7 +60,7 @@ var registeredDatastores = {};
  *
  * @type {Dictionary}
  */
-module.exports = {
+const adapter = {
 
 
   // The identity of this adapter, to be referenced by datastore configurations in a Sails app.
@@ -283,7 +283,8 @@ module.exports = {
         let newRecord;
         if (query.meta.fetch) {
           const newRow = await wrapAsyncStatements(client.get.bind(client, selectQuery));
-          newRecord = new Query(manager.schema, manager.models).castRow(newRow);
+          newRecord = new Query(tableName, manager.schema[tableName], manager.models[tableName])
+            .castRow(newRow);
         }
 
         done(undefined, newRecord);
@@ -356,7 +357,7 @@ module.exports = {
    *               @param {Array?}
    * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
    */
-  update: function (datastoreName, query, done) {
+  update: async function (datastoreName, query, done) {
 
     // Look up the datastore entry (manager/driver/config).
     var dsEntry = registeredDatastores[datastoreName];
@@ -366,14 +367,31 @@ module.exports = {
       return done(new Error('Consistency violation: Cannot do that with datastore (`'+datastoreName+'`) because no matching datastore entry is registered in this adapter!  This is usually due to a race condition (e.g. a lifecycle callback still running after the ORM has been torn down), or it could be due to a bug in this adapter.  (If you get stumped, reach out at https://sailsjs.com/support.)'));
     }
 
-    // Perform the query (and if relevant, send back a result.)
-    //
-    // > TODO: Replace this setTimeout with real logic that calls
-    // > `done()` when finished. (Or remove this method from the
-    // > adapter altogether
-    setTimeout(function(){
-      return done(new Error('Adapter method (`update`) not implemented yet.'));
-    }, 16);
+    try {
+      await spawnConnection(dsEntry, (client) => {
+        const tableName = query.using;
+        const escapedTable = utils.escapeTable(tableName);
+
+        const tableSchema = dsEntry.manager.schemas[tableName];
+        const model = dsEntry.manager.models[tableName];
+
+        const _query = new Query(tableName, tableSchema, model);
+        const updateQuery = _query.update(query.criteria, query.valuesToSet);
+
+        const statement = await wrapAsyncForThis(
+          client.run.bind(client, updateQuery.query, updateQuery.values));
+
+        let results;
+        if (statement.changes > 0 && query.meta.fetch) {
+          results = await wrapAsyncStatements(
+            adapter.find.bind(adapter, datastoreName, query));
+        }
+
+        done (undefined, results);
+      });
+    } catch (err) {
+      done(err);
+    }
 
   },
 
@@ -708,7 +726,7 @@ module.exports = {
 
         var normalizedSchema = utils.normalizeSchema(schema);
         // Set internal schema mapping
-        dataStore.manager.schema[tableName] = normalizedSchema;
+        datastore.manager.schema[tableName] = normalizedSchema;
 
         return Promise.resolve(normalizedSchema);
       } catch (err) {
@@ -932,3 +950,21 @@ function wrapAsyncStatements(func) {
     });
   });
 }
+
+/**
+ * Utility function that wraps an async function in a promise. In contrast
+ * to the above, this method specifically resolves with the `this` value
+ * passed to the callback function
+ * @param {Function} func Async function which takes 1 argument: a callback
+ * function that takes an err and invokes its callback with a `this` property
+ */
+function wrapAsyncForThis(func) {
+  return new Promise((resolve, reject) => {
+    func(function(err) {
+      if (err) reject(err);
+      else resolve(this);
+    });
+  })
+}
+
+module.exports = adapter;
