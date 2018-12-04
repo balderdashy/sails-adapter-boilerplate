@@ -281,7 +281,7 @@ const adapter = {
 
         // get the last inserted row if requested
         let newRecord;
-        if (query.meta.fetch) {
+        if (query.meta && query.meta.fetch) {
           const newRow = await wrapAsyncStatements(client.get.bind(client, selectQuery));
           newRecord = new Query(tableName, manager.schema[tableName], manager.models[tableName])
             .castRow(newRow);
@@ -368,11 +368,11 @@ const adapter = {
     }
 
     try {
-      await spawnConnection(dsEntry, (client) => {
+      await spawnConnection(dsEntry, async (client) => {
         const tableName = query.using;
         const escapedTable = utils.escapeTable(tableName);
 
-        const tableSchema = dsEntry.manager.schemas[tableName];
+        const tableSchema = dsEntry.manager.schema[tableName];
         const model = dsEntry.manager.models[tableName];
 
         const _query = new Query(tableName, tableSchema, model);
@@ -382,12 +382,12 @@ const adapter = {
           client.run.bind(client, updateQuery.query, updateQuery.values));
 
         let results;
-        if (statement.changes > 0 && query.meta.fetch) {
+        if (statement.changes > 0 && query.meta && query.meta.fetch) {
           results = await wrapAsyncStatements(
             adapter.find.bind(adapter, datastoreName, query));
         }
 
-        done (undefined, results);
+        done(undefined, results);
       });
     } catch (err) {
       done(err);
