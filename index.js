@@ -139,7 +139,7 @@ module.exports = {
    *               @param {Error?}
    * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
    */
-  registerDatastore: function (datastoreConfig, physicalModelsReport, done) {
+  registerDatastore: async function (datastoreConfig, physicalModelsReport, done) {
 
     // Grab the unique name for this datastore for easy access below.
     var datastoreName = datastoreConfig.identity;
@@ -253,7 +253,8 @@ module.exports = {
   create: async function (datastoreName, query, done) {
 
     // Look up the datastore entry (manager/driver/config).
-    var dsEntry = registeredDatastores[datastoreName];
+    const dsEntry = registeredDatastores[datastoreName];
+    const {manager} = dsEntry;
 
     // Sanity check:
     if (_.isUndefined(dsEntry)) {
@@ -265,7 +266,7 @@ module.exports = {
         const tableName = query.using;
         const escapedTable = utils.escapeTable(tableName);
 
-        const attributes = utils.mapAttributes(query.newRecord, dsEntry.schema[tableName]);
+        const attributes = utils.mapAttributes(query.newRecord, manager.schema[tableName]);
 
         const columnNames = attributes.keys.join(', ');
         const paramValues = attributes.params.join(', ');
@@ -275,13 +276,17 @@ module.exports = {
         var selectQuery = 'SELECT * FROM ' + escapedTable + ' ORDER BY rowid DESC LIMIT 1';
 
         // first insert values
-        await wrapAsyncStatements(client.run.bind(client, insertQuery));
+        await wrapAsyncStatements(
+          client.run.bind(client, insertQuery, attributes.values));
 
-        // get the last inserted row
-        const newRow = await wrapAsyncStatements(client.get.bind(client, selectQuery));
+        // get the last inserted row if requested
+        let newRecord;
+        if (query.meta.fetch) {
+          const newRow = await wrapAsyncStatements(client.get.bind(client, selectQuery));
+          newRecord = new Query(manager.schema, manager.models).castRow(newRow);
+        }
 
-        throw new Error('Did not finish casting from SQLite to Waterline type');
-        done(undefined, newRow);
+        done(undefined, newRecord);
       });
     } catch (err) {
       done(err);
@@ -636,11 +641,11 @@ module.exports = {
    * (This is used to allow Sails to do auto-migrations)
    */
   describe: async function describe(datastoreName, tableName, cb, meta) {
-    var datastore = datastores[datastoreName];
+    var datastore = registeredDatastores[datastoreName];
     spawnConnection(datastore, async function __DESCRIBE__(client) {
       // Get a list of all the tables in this database
       // See: http://www.sqlite.org/faq.html#q7)
-      var query = 'SELECT * FROM sqlite_master WHERE type="table" AND name="' + table + '" ORDER BY name';
+      var query = 'SELECT * FROM sqlite_master WHERE type="table" AND name="' + tableName + '" ORDER BY name';
 
       try {
         const schema = await wrapAsyncStatements(client.get.bind(client, query));
@@ -703,7 +708,7 @@ module.exports = {
 
         var normalizedSchema = utils.normalizeSchema(schema);
         // Set internal schema mapping
-        dataStore.schema[tableName] = normalizedSchema;
+        dataStore.manager.schema[tableName] = normalizedSchema;
 
         return Promise.resolve(normalizedSchema);
       } catch (err) {
@@ -770,7 +775,7 @@ module.exports = {
         }));
 
         // Replacing if it already existed
-        datastore.schema[tableName] = _schema.schema;
+        datastore.manager.schema[tableName] = _schema.schema;
       });
 
       done();
@@ -816,7 +821,7 @@ module.exports = {
         await wrapAsyncStatements(client.run.bind(client, query));
       });
 
-      delete dsEntry.schema[tableName];
+      delete dsEntry.manager.schema[tableName];
       done();
     } catch (err) {
       done(err);
