@@ -252,47 +252,20 @@ const adapter = {
    */
   create: async function (datastoreName, query, done) {
 
-    // Look up the datastore entry (manager/driver/config).
-    const dsEntry = registeredDatastores[datastoreName];
-    const {manager} = dsEntry;
-
-    // Sanity check:
-    if (_.isUndefined(dsEntry)) {
-      return done(new Error('Consistency violation: Cannot do that with datastore (`'+datastoreName+'`) because no matching datastore entry is registered in this adapter!  This is usually due to a race condition (e.g. a lifecycle callback still running after the ORM has been torn down), or it could be due to a bug in this adapter.  (If you get stumped, reach out at https://sailsjs.com/support.)'));
-    }
+    // normalize newRecords property
+    query.newRecords = [query.newRecord];
+    delete query.newRecord;
 
     try {
-      await spawnConnection(dsEntry, async client => {
-        const tableName = query.using;
-        const escapedTable = utils.escapeTable(tableName);
+      const record = await wrapAsyncStatements(
+        adapter.createEach.bind(adapter, datastoreName, query));
 
-        const attributes = utils.mapAttributes(query.newRecord, manager.schema[tableName]);
-
-        const columnNames = attributes.keys.join(', ');
-        const paramValues = attributes.params.join(', ');
-
-        // Build query
-        var insertQuery = 'INSERT INTO ' + escapedTable + ' (' + columnNames + ') values (' + paramValues + ')';
-        var selectQuery = 'SELECT * FROM ' + escapedTable + ' ORDER BY rowid DESC LIMIT 1';
-
-        // first insert values
-        await wrapAsyncStatements(
-          client.run.bind(client, insertQuery, attributes.values));
-
-        // get the last inserted row if requested
-        let newRecord;
-        if (query.meta && query.meta.fetch) {
-          const newRow = await wrapAsyncStatements(client.get.bind(client, selectQuery));
-          newRecord = new Query(tableName, manager.schema[tableName], manager.models[tableName])
-            .castRow(newRow);
-        }
-
-        done(undefined, newRecord);
-      });
+      if (record && record.length >>> 0 > 0) {
+        done(record[0]);
+      }
     } catch (err) {
       done(err);
     }
-
   },
 
 
@@ -325,14 +298,47 @@ const adapter = {
       return done(new Error('Consistency violation: Cannot do that with datastore (`'+datastoreName+'`) because no matching datastore entry is registered in this adapter!  This is usually due to a race condition (e.g. a lifecycle callback still running after the ORM has been torn down), or it could be due to a bug in this adapter.  (If you get stumped, reach out at https://sailsjs.com/support.)'));
     }
 
-    // Perform the query (and if relevant, send back a result.)
-    //
-    // > TODO: Replace this setTimeout with real logic that calls
-    // > `done()` when finished. (Or remove this method from the
-    // > adapter altogether
-    setTimeout(function(){
-      return done(new Error('Adapter method (`createEach`) not implemented yet.'));
-    }, 16);
+    try {
+      await spawnConnection(dsEntry, async client => {
+        const tableName = query.using;
+        const escapedTable = utils.escapeTable(tableName);
+
+        const attributeSets = utils.mapAllAttributes(query.newRecords, manager.schema[tableName]);
+
+        const columnNames = attributeSets.keys.join(', ');
+
+        const paramValues = attribute.paramLists.map((paramList) => {
+          return `( ${paramList.join(', ')} )`;
+        }).join(' ');
+
+        const paramValues = attributes.params.join(', ');
+
+        // Build query
+        var insertQuery = `INSERT INTO ${escapedTable} (${columnNames}) values ${paramValues})`;
+        var selectQuery = `SELECT * FROM ${escapedTable} ORDER BY rowid DESC LIMIT ${query.newRecords.length}`;
+
+        // first insert values
+        await wrapAsyncStatements(
+          client.run.bind(client, insertQuery, attributes.values));
+
+        // get the last inserted rows if requested
+        let newRows;
+        if (query.meta && query.meta.fetch) {
+          newRows = [];
+          const queryObj = new Query(tableName, manager.schema[tableName], manager.models[tableName]);
+
+          await wrapAsyncStatements(client.each.bind(client, selectQuery, (err, row) => {
+            if (err) throw err;
+
+            newRows.push(queryObj.castRow(row));
+          }));
+        }
+
+        done(undefined, newRows);
+      });
+    } catch (err) {
+      done(err);
+    }
 
   },
 
