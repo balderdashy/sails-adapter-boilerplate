@@ -466,7 +466,7 @@ const adapter = {
    *               @param {Array}  [matching physical records]
    * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
    */
-  find: function (datastoreName, query, done) {
+  find: async function (datastoreName, query, done) {
 
     // Look up the datastore entry (manager/driver/config).
     var dsEntry = registeredDatastores[datastoreName];
@@ -484,15 +484,17 @@ const adapter = {
 
     try {
       const values = [];
-      let resultCount = await wrapAsyncStatements(
-        client.each.bind(client, queryStatement.query, queryStatement.values,(err, row) => {
-          if (err) throw err;
+      await spawnConnection(dsEntry, async function __FIND__(client) {
+        let resultCount = await wrapAsyncStatements(
+          client.each.bind(client, queryStatement.query, queryStatement.values, (err, row) => {
+            if (err) throw err;
 
-          values.push(queryObj.castRow(row));
-        }));
+            values.push(queryObj.castRow(row));
+          }));
 
-      console.log(`${resultCount} results returned`);
-      done(undefined, values);
+        console.log(`${resultCount} results returned`);
+        done(undefined, values);
+      })
     } catch (err) {
       done(err);
     }
