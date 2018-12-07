@@ -476,15 +476,26 @@ const adapter = {
       return done(new Error('Consistency violation: Cannot do that with datastore (`'+datastoreName+'`) because no matching datastore entry is registered in this adapter!  This is usually due to a race condition (e.g. a lifecycle callback still running after the ORM has been torn down), or it could be due to a bug in this adapter.  (If you get stumped, reach out at https://sailsjs.com/support.)'));
     }
 
-    // Perform the query and send back a result.
-    //
-    // > TODO: Replace this setTimeout with real logic that calls
-    // > `done()` when finished. (Or remove this method from the
-    // > adapter altogether
-    setTimeout(function(){
-      return done(new Error('Adapter method (`find`) not implemented yet.'));
-    }, 16);
+    const tableName = query.using;
+    const schema = dsEntry.manager.schema[tableName];
+    const model = dsEntry.manager.models[tableName];
+    const queryObj = new Query(tableName, schema, model);
+    const queryStatement = queryObj.find(query.criteria);
 
+    try {
+      const values = [];
+      let resultCount = await wrapAsyncStatements(
+        client.each.bind(client, queryStatement.query, queryStatement.values,(err, row) => {
+          if (err) throw err;
+
+          values.push(queryObj.castRow(row));
+        }));
+
+      console.log(`${resultCount} results returned`);
+      done(undefined, values);
+    } catch (err) {
+      done(err);
+    }
   },
 
 
