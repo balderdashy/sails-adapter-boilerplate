@@ -261,7 +261,7 @@ const adapter = {
         adapter.createEach.bind(adapter, datastoreName, query));
 
       if (record && record.length >>> 0 > 0) {
-        done(record[0]);
+        done(undefined, record[0]);
       }
     } catch (err) {
       done(err);
@@ -288,10 +288,11 @@ const adapter = {
    *               @param {Array?}
    * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
    */
-  createEach: function (datastoreName, query, done) {
+  createEach: async function (datastoreName, query, done) {
 
     // Look up the datastore entry (manager/driver/config).
-    var dsEntry = registeredDatastores[datastoreName];
+    const dsEntry = registeredDatastores[datastoreName];
+    const manager = dsEntry.manager;
 
     // Sanity check:
     if (_.isUndefined(dsEntry)) {
@@ -307,19 +308,17 @@ const adapter = {
 
         const columnNames = attributeSets.keys.join(', ');
 
-        const paramValues = attribute.paramLists.map((paramList) => {
+        const paramValues = attributeSets.paramLists.map((paramList) => {
           return `( ${paramList.join(', ')} )`;
-        }).join(' ');
-
-        const paramValues = attributes.params.join(', ');
+        }).join(', ');
 
         // Build query
-        var insertQuery = `INSERT INTO ${escapedTable} (${columnNames}) values ${paramValues})`;
+        var insertQuery = `INSERT INTO ${escapedTable} (${columnNames}) values ${paramValues}`;
         var selectQuery = `SELECT * FROM ${escapedTable} ORDER BY rowid DESC LIMIT ${query.newRecords.length}`;
 
         // first insert values
         await wrapAsyncStatements(
-          client.run.bind(client, insertQuery, attributes.values));
+          client.run.bind(client, insertQuery, attributeSets.values));
 
         // get the last inserted rows if requested
         let newRows;
