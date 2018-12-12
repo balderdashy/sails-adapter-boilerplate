@@ -497,7 +497,6 @@ const adapter = {
             values.push(queryObj.castRow(row));
           }));
 
-        console.log(`${resultCount} results returned`);
         done(undefined, values);
       })
     } catch (err) {
