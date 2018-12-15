@@ -375,8 +375,6 @@ const adapter = {
     try {
       await spawnConnection(dsEntry, async (client) => {
         const tableName = query.using;
-        const escapedTable = utils.escapeTable(tableName);
-
         const tableSchema = dsEntry.manager.schema[tableName];
         const model = dsEntry.manager.models[tableName];
 
@@ -420,7 +418,7 @@ const adapter = {
    *               @param {Array?}
    * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
    */
-  destroy: function (datastoreName, query, done) {
+  destroy: async function (datastoreName, query, done) {
 
     // Look up the datastore entry (manager/driver/config).
     var dsEntry = registeredDatastores[datastoreName];
@@ -430,14 +428,34 @@ const adapter = {
       return done(new Error('Consistency violation: Cannot do that with datastore (`'+datastoreName+'`) because no matching datastore entry is registered in this adapter!  This is usually due to a race condition (e.g. a lifecycle callback still running after the ORM has been torn down), or it could be due to a bug in this adapter.  (If you get stumped, reach out at https://sailsjs.com/support.)'));
     }
 
-    // Perform the query (and if relevant, send back a result.)
-    //
-    // > TODO: Replace this setTimeout with real logic that calls
-    // > `done()` when finished. (Or remove this method from the
-    // > adapter altogether
-    setTimeout(function(){
-      return done(new Error('Adapter method (`destroy`) not implemented yet.'));
-    }, 16);
+    try {
+      await spawnConnection(dsEntry, async function __DELETE__(client) {
+        const tableName = query.using;
+        const tableSchema = dsEntry.manager.schema[tableName];
+        const model = dsEntry.manager.models[tableName];
+
+        const _query = new Query(tableName, tableSchema, model);
+        const queryObj = _query.destroy(query.criteria);
+
+        let results;
+        if (query.meta.fetch) {
+          results = [];
+          const findRows = await wrapAsyncStatements(
+            adapter.find.bind(adapter, datastoreName, query));
+          
+          for (let row of findRows) {
+            results.push(_query.castRow(row));
+          }
+        }
+
+        await wrapAsyncStatements(
+          client.run.bind(client, queryObj.query, queryObj.values));
+
+        done(undefined, results);
+      });
+    } catch (err) {
+      done(err);
+    }
 
   },
 
