@@ -152,6 +152,27 @@ const adapter = {
       return done(new Error('Consistency violation: Cannot register datastore: `' + datastoreName + '`, because it is already registered with this adapter!  This could be due to an unexpected race condition in userland code (e.g. attempting to initialize Waterline more than once), or it could be due to a bug in this adapter.  (If you get stumped, reach out at https://sailsjs.com/support.)'));
     }
 
+    let writeClient;
+    try {
+      writeClient = await wrapAsyncStatements((cb) => {
+        if (datastoreConfig.verbose) sqlite3 = sqlite3.verbose();
+        const writeClient = new sqlite3.Database(
+          datastoreConfig.filename,
+          datastoreConfig.mode,
+          err => {
+            if (!err) {
+              //set write client to serialize mode
+              writeClient.serialize();
+            }
+
+            cb(err, writeClient);
+          }
+        );
+      });
+    } catch (err) {
+      done(err);
+    }
+
     // To maintain the spirit of this repository, this implementation will
     // continue to spin up and tear down a connection to the Sqlite db on every
     // request.
@@ -162,7 +183,8 @@ const adapter = {
       manager: {
         models: physicalModelsReport, //for reference
         schema: {},
-        foreignKeys: utils.buildForeignKeyMap(physicalModelsReport)
+        foreignKeys: utils.buildForeignKeyMap(physicalModelsReport),
+        writeClient,
       },
       // driver: undefined // << TODO: include driver here (if relevant)
     };
@@ -206,7 +228,8 @@ const adapter = {
       return done(new Error('Consistency violation: Attempting to tear down a datastore (`'+datastoreName+'`) which is not currently registered with this adapter.  This is usually due to a race condition in userland code (e.g. attempting to tear down the same ORM instance more than once), or it could be due to a bug in this adapter.  (If you get stumped, reach out at https://sailsjs.com/support.)'));
     }
 
-    // No manager to speak of
+    // Close write client
+    dsEntry.manager.writeClient.close();
     delete registeredDatastores[datastoreName];
 
     // Inform Waterline that we're done, and that everything went as expected.
@@ -300,41 +323,40 @@ const adapter = {
     }
 
     try {
-      await spawnConnection(dsEntry, async client => {
-        const tableName = query.using;
-        const escapedTable = utils.escapeTable(tableName);
+      const client = manager.writeClient;
+      const tableName = query.using;
+      const escapedTable = utils.escapeTable(tableName);
 
-        const attributeSets = utils.mapAllAttributes(query.newRecords, manager.schema[tableName]);
+      const attributeSets = utils.mapAllAttributes(query.newRecords, manager.schema[tableName]);
 
-        const columnNames = attributeSets.keys.join(', ');
+      const columnNames = attributeSets.keys.join(', ');
 
-        const paramValues = attributeSets.paramLists.map((paramList) => {
-          return `( ${paramList.join(', ')} )`;
-        }).join(', ');
+      const paramValues = attributeSets.paramLists.map((paramList) => {
+        return `( ${paramList.join(', ')} )`;
+      }).join(', ');
 
-        // Build query
-        var insertQuery = `INSERT INTO ${escapedTable} (${columnNames}) values ${paramValues}`;
-        var selectQuery = `SELECT * FROM ${escapedTable} ORDER BY rowid DESC LIMIT ${query.newRecords.length}`;
+      // Build query
+      var insertQuery = `INSERT INTO ${escapedTable} (${columnNames}) values ${paramValues}`;
+      var selectQuery = `SELECT * FROM ${escapedTable} ORDER BY rowid DESC LIMIT ${query.newRecords.length}`;
 
-        // first insert values
-        await wrapAsyncStatements(
-          client.run.bind(client, insertQuery, attributeSets.values));
+      // first insert values
+      await wrapAsyncStatements(
+        client.run.bind(client, insertQuery, attributeSets.values));
 
-        // get the last inserted rows if requested
-        let newRows;
-        if (query.meta && query.meta.fetch) {
-          newRows = [];
-          const queryObj = new Query(tableName, manager.schema[tableName], manager.models[tableName]);
+      // get the last inserted rows if requested
+      let newRows;
+      if (query.meta && query.meta.fetch) {
+        newRows = [];
+        const queryObj = new Query(tableName, manager.schema[tableName], manager.models[tableName]);
 
-          await wrapAsyncStatements(client.each.bind(client, selectQuery, (err, row) => {
-            if (err) throw err;
+        await wrapAsyncStatements(client.each.bind(client, selectQuery, (err, row) => {
+          if (err) throw err;
 
-            newRows.push(queryObj.castRow(row));
-          }));
-        }
+          newRows.push(queryObj.castRow(row));
+        }));
+      }
 
-        done(undefined, newRows);
-      });
+      done(undefined, newRows);
     } catch (err) {
       done(err);
     }
@@ -373,25 +395,24 @@ const adapter = {
     }
 
     try {
-      await spawnConnection(dsEntry, async (client) => {
-        const tableName = query.using;
-        const tableSchema = dsEntry.manager.schema[tableName];
-        const model = dsEntry.manager.models[tableName];
+      const client = dsEntry.manager.writeClient;
+      const tableName = query.using;
+      const tableSchema = dsEntry.manager.schema[tableName];
+      const model = dsEntry.manager.models[tableName];
 
-        const _query = new Query(tableName, tableSchema, model);
-        const updateQuery = _query.update(query.criteria, query.valuesToSet);
+      const _query = new Query(tableName, tableSchema, model);
+      const updateQuery = _query.update(query.criteria, query.valuesToSet);
 
-        const statement = await wrapAsyncForThis(
-          client.run.bind(client, updateQuery.query, updateQuery.values));
+      const statement = await wrapAsyncForThis(
+        client.run.bind(client, updateQuery.query, updateQuery.values));
 
-        let results;
-        if (statement.changes > 0 && query.meta && query.meta.fetch) {
-          results = await wrapAsyncStatements(
-            adapter.find.bind(adapter, datastoreName, query));
-        }
+      let results;
+      if (statement.changes > 0 && query.meta && query.meta.fetch) {
+        results = await wrapAsyncStatements(
+          adapter.find.bind(adapter, datastoreName, query));
+      }
 
-        done(undefined, results);
-      });
+      done(undefined, results);
     } catch (err) {
       done(err);
     }
@@ -429,25 +450,24 @@ const adapter = {
     }
 
     try {
-      await spawnConnection(dsEntry, async function __DELETE__(client) {
-        const tableName = query.using;
-        const tableSchema = dsEntry.manager.schema[tableName];
-        const model = dsEntry.manager.models[tableName];
+      const client = dsEntry.manager.writeClient;
+      const tableName = query.using;
+      const tableSchema = dsEntry.manager.schema[tableName];
+      const model = dsEntry.manager.models[tableName];
 
-        const _query = new Query(tableName, tableSchema, model);
-        const queryObj = _query.destroy(query.criteria);
+      const _query = new Query(tableName, tableSchema, model);
+      const queryObj = _query.destroy(query.criteria);
 
-        let results;
-        if (query.meta.fetch) {
-          results = await wrapAsyncStatements(
-            adapter.find.bind(adapter, datastoreName, query));
-        }
+      let results;
+      if (query.meta.fetch) {
+        results = await wrapAsyncStatements(
+          adapter.find.bind(adapter, datastoreName, query));
+      }
 
-        await wrapAsyncStatements(
-          client.run.bind(client, queryObj.query, queryObj.values));
+      await wrapAsyncStatements(
+        client.run.bind(client, queryObj.query, queryObj.values));
 
-        done(undefined, results);
-      });
+      done(undefined, results);
     } catch (err) {
       done(err);
     }
@@ -502,7 +522,7 @@ const adapter = {
 
     try {
       const values = [];
-      await spawnConnection(dsEntry, async function __FIND__(client) {
+      await spawnReadonlyConnection(dsEntry, async function __FIND__(client) {
         let resultCount = await wrapAsyncStatements(
           client.each.bind(client, queryStatement.query, queryStatement.values, (err, row) => {
             if (err) throw err;
@@ -695,7 +715,7 @@ const adapter = {
    */
   describe: async function describe(datastoreName, tableName, cb, meta) {
     var datastore = registeredDatastores[datastoreName];
-    spawnConnection(datastore, async function __DESCRIBE__(client) {
+    spawnReadonlyConnection(datastore, async function __DESCRIBE__(client) {
       // Get a list of all the tables in this database
       // See: http://www.sqlite.org/faq.html#q7)
       var query = 'SELECT * FROM sqlite_master WHERE type="table" AND name="' + tableName + '" ORDER BY name';
@@ -805,31 +825,30 @@ const adapter = {
     }
 
     try {
-      await spawnConnection(datastore, async function __DEFINE__(client){
-        const escapedTable = utils.escapeTable(tableName);
+      const client = datastore.manager.writeClient;
+      const escapedTable = utils.escapeTable(tableName);
 
-        // Iterate through each attribute, building a query string
-        const _schema = utils.buildSchema(definition, datastore.manager.foreignKeys[tableName]);
+      // Iterate through each attribute, building a query string
+      const _schema = utils.buildSchema(definition, datastore.manager.foreignKeys[tableName]);
 
-        // Check for any index attributes
-        const indices = utils.buildIndexes(definition);
+      // Check for any index attributes
+      const indices = utils.buildIndexes(definition);
 
-        // Build query
-        const query = 'CREATE TABLE ' + escapedTable + ' (' + _schema.declaration + ')';
+      // Build query
+      const query = 'CREATE TABLE ' + escapedTable + ' (' + _schema.declaration + ')';
+
+      await wrapAsyncStatements(client.run.bind(client, query));
+
+      await Promise.all(indices.map(async index => {
+        // Build a query to create a namespaced index tableName_key
+        var query = 'CREATE INDEX ' + tableName + '_' + index + ' on ' +
+          tableName + ' (' + index + ');';
 
         await wrapAsyncStatements(client.run.bind(client, query));
+      }));
 
-        await Promise.all(indices.map(async index => {
-          // Build a query to create a namespaced index tableName_key
-          var query = 'CREATE INDEX ' + tableName + '_' + index + ' on ' +
-            tableName + ' (' + index + ');';
-
-          await wrapAsyncStatements(client.run.bind(client, query));
-        }));
-
-        // Replacing if it already existed
-        datastore.manager.schema[tableName] = _schema.schema;
-      });
+      // Replacing if it already existed
+      datastore.manager.schema[tableName] = _schema.schema;
 
       done();
     } catch (err) {
@@ -870,9 +889,8 @@ const adapter = {
 
 
     try {
-      await spawnConnection(dsEntry, async function __DROP__(client) {
-        await wrapAsyncStatements(client.run.bind(client, query));
-      });
+      const client = dsEntry.manager.writeClient;
+      await wrapAsyncStatements(client.run.bind(client, query));
 
       delete dsEntry.manager.schema[tableName];
       done();
@@ -936,7 +954,7 @@ const adapter = {
  * @param {*} cb
  * @return Promise
  */
-function spawnConnection(datastore, logic) {
+function spawnReadonlyConnection(datastore, logic) {
   let client;
   return new Promise((resolve, reject) => {
     if (!datastore) reject(Errors.InvalidConnection);
@@ -954,7 +972,7 @@ function spawnConnection(datastore, logic) {
     // Create a new handle to our database
     client = new sqlite3.Database(
       datastoreConfig.filename,
-      datastoreConfig.mode,
+      sqlite3.OPEN_READONLY,
       err => {
         if (err) reject(err);
         else resolve(client);
