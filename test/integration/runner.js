@@ -1,6 +1,6 @@
 var tests = require('waterline-adapter-tests'),
     sqlite3 = require('sqlite3'),
-    adapter = require('../../lib/adapter'),
+    adapter = require('../../index'),
     mocha = require('mocha');
 
 /**
@@ -17,4 +17,8 @@ var config = {
  * Run Tests
  */
 
-var suite = new tests({ adapter: adapter, config: config });
+var suite = new tests({
+  adapter: adapter,
+  config: config,
+  interfaces: ['semantic','queryable','migratable'],
+});
