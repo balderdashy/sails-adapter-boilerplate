@@ -31,6 +31,9 @@
     "should": "*",
     "waterline-adapter-tests": "^1.0.1"
   },
+  "scripts": {
+    "test": "node test/integration/runner.js"
+  },
   "sails": {
     "adapter": {
       "type": "sqlite3",

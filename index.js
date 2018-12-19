@@ -155,7 +155,7 @@ const adapter = {
     let writeClient;
     try {
       writeClient = await wrapAsyncStatements((cb) => {
-        if (datastoreConfig.verbose) sqlite3 = sqlite3.verbose();
+        if (datastoreConfig.verbose) sqlite3.verbose();
         const writeClient = new sqlite3.Database(
           datastoreConfig.filename,
           datastoreConfig.mode,
@@ -459,7 +459,7 @@ const adapter = {
       const queryObj = _query.destroy(query.criteria);
 
       let results;
-      if (query.meta.fetch) {
+      if (query.meta && query.meta.fetch) {
         results = await wrapAsyncStatements(
           adapter.find.bind(adapter, datastoreName, query));
       }
@@ -964,7 +964,7 @@ function spawnReadonlyConnection(datastore, logic) {
     // Check if we want to run in verbose mode
     // Note that once you go verbose, you can't go back.
     // See: https://github.com/mapbox/node-sqlite3/wiki/API
-    if (datastoreConfig.verbose) sqlite3 = sqlite3.verbose();
+    if (datastoreConfig.verbose) sqlite3.verbose();
 
     // Make note whether the database already exists
     exists = fs.existsSync(datastoreConfig.filename);
