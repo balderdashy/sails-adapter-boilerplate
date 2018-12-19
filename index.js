@@ -312,6 +312,7 @@ const adapter = {
    * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
    */
   createEach: async function (datastoreName, query, done) {
+    let verbose = false;
 
     // Look up the datastore entry (manager/driver/config).
     const dsEntry = registeredDatastores[datastoreName];
@@ -343,11 +344,12 @@ const adapter = {
       await wrapAsyncStatements(
         client.run.bind(client, insertQuery, attributeSets.values));
 
-      // get the last inserted rows if requested
+        // get the last inserted rows if requested
+      const model = manager.models[tableName];
       let newRows;
       if (query.meta && query.meta.fetch) {
         newRows = [];
-        const queryObj = new Query(tableName, manager.schema[tableName], manager.models[tableName]);
+        const queryObj = new Query(tableName, manager.schema[tableName], model);
 
         await wrapAsyncStatements(client.each.bind(client, selectQuery, (err, row) => {
           if (err) throw err;
@@ -355,6 +357,17 @@ const adapter = {
           newRows.push(queryObj.castRow(row));
         }));
       }
+
+      // resort for the order we were given the records.
+      // we can guarantee that the first records will be given the
+      // first available row IDs (even if some were deleted creating gaps),
+      // so it's as easy as a sort using the primary key as the comparator
+      let pkName = model.definition[model.primaryKey].columnName;
+      newRows.sort((lhs, rhs) => {
+        if (lhs[pkName] < rhs[pkName]) return -1;
+        if (lhs[pkName] > rhs[pkName]) return 1;
+        return 0;
+      });
 
       done(undefined, newRows);
     } catch (err) {
