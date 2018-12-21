@@ -356,18 +356,18 @@ const adapter = {
 
           newRows.push(queryObj.castRow(row));
         }));
-      }
 
-      // resort for the order we were given the records.
-      // we can guarantee that the first records will be given the
-      // first available row IDs (even if some were deleted creating gaps),
-      // so it's as easy as a sort using the primary key as the comparator
-      let pkName = model.definition[model.primaryKey].columnName;
-      newRows.sort((lhs, rhs) => {
-        if (lhs[pkName] < rhs[pkName]) return -1;
-        if (lhs[pkName] > rhs[pkName]) return 1;
-        return 0;
-      });
+        // resort for the order we were given the records.
+        // we can guarantee that the first records will be given the
+        // first available row IDs (even if some were deleted creating gaps),
+        // so it's as easy as a sort using the primary key as the comparator
+        let pkName = model.definition[model.primaryKey].columnName;
+        newRows.sort((lhs, rhs) => {
+          if (lhs[pkName] < rhs[pkName]) return -1;
+          if (lhs[pkName] > rhs[pkName]) return 1;
+          return 0;
+        });
+      }
 
       done(undefined, newRows);
     } catch (err) {
@@ -903,12 +903,6 @@ const adapter = {
    * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
    */
   define: async function (datastoreName, tableName, definition, done) {
-    /****************************************************************
-     * NOTICE:
-     * This function is broken. util.buildSchema does not read
-     * defintion objects correctly for Waterline API Version 1
-     ****************************************************************/
-
 
     // Look up the datastore entry (manager/driver/config).
     var datastore = registeredDatastores[datastoreName];
@@ -918,27 +912,32 @@ const adapter = {
       return done(new Error('Consistency violation: Cannot do that with datastore (`'+datastoreName+'`) because no matching datastore entry is registered in this adapter!  This is usually due to a race condition (e.g. a lifecycle callback still running after the ORM has been torn down), or it could be due to a bug in this adapter.  (If you get stumped, reach out at https://sailsjs.com/support.)'));
     }
 
+    let tableQuery;
+    let outerSchema
     try {
       const client = datastore.manager.writeClient;
       const escapedTable = utils.escapeTable(tableName);
 
       // Iterate through each attribute, building a query string
       const _schema = utils.buildSchema(definition, datastore.manager.foreignKeys[tableName]);
+      outerSchema = _schema.schema;
 
       // Check for any index attributes
       const indices = utils.buildIndexes(definition);
 
       // Build query
-      const query = 'CREATE TABLE ' + escapedTable + ' (' + _schema.declaration + ')';
+      // const query = 'CREATE TABLE ' + escapedTable + ' (' + _schema.declaration + ')';
+      tableQuery = 'CREATE TABLE ' + escapedTable + ' (' + _schema.declaration + ')';
 
-      await wrapAsyncStatements(client.run.bind(client, query));
+      // await wrapAsyncStatements(client.run.bind(client, query));
+      await wrapAsyncStatements(client.run.bind(client, tableQuery));
 
       await Promise.all(indices.map(async index => {
         // Build a query to create a namespaced index tableName_key
-        var query = 'CREATE INDEX ' + tableName + '_' + index + ' on ' +
+        const indexQuery = 'CREATE INDEX ' + tableName + '_' + index + ' on ' +
           tableName + ' (' + index + ');';
 
-        await wrapAsyncStatements(client.run.bind(client, query));
+        await wrapAsyncStatements(client.run.bind(client, indexQuery));
       }));
 
       // Replacing if it already existed

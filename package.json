@@ -41,6 +41,7 @@
       "implements": [
         "semantic",
         "queryable",
+        "associations",
         "migratable"
       ]
     }

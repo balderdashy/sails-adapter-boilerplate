@@ -20,5 +20,5 @@ var config = {
 var suite = new tests({
   adapter: adapter,
   config: config,
-  interfaces: ['semantic','queryable','migratable'],
+  interfaces: ['semantic','queryable','migratable','associations'],
 });
