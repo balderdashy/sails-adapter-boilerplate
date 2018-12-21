@@ -1,33 +1,50 @@
-![image_squidhome@2x.png](http://i.imgur.com/RIvu9.png) 
+![image_squidhome@2x.png](http://i.imgur.com/RIvu9.png)
 
 # SQLite3 Sails/Waterline Adapter
 
 A [Waterline](https://github.com/balderdashy/waterline) adapter for SQLite3. May be used in a [Sails](https://github.com/balderdashy/sails) app or anything using Waterline for the ORM.
 
 
-## Disclaimer
-SQLite3 adapter is in a very early development stage and not ready for primetime.
+## Disclaimers
+- SQLite3 adapter is not optimized for performance. Native joins are not implemented (among other issues).
+- This codebase contains no unit tests, though all integration tests with the waterline api (v1) pass.
+
+#### People who should use this package right now:
+Those prototyping apps with sailsjs and looking to use sqlite for a test database.
+
+For anyone looking to use this adapter in production, contributions welcome!
 
 ## Getting started
-It's usually pretty easy to add your own adapters for integrating with proprietary systems or existing open APIs.  For most things, it's as easy as `require('some-module')` and mapping the appropriate methods to match waterline semantics.  To get started:
+To use this in your sails app, install using:
 
-1. Fork this repository
-2. Set up your README and package.json file.  Sails.js adapter module names are of the form sails-*, where * is the name of the datastore or service you're integrating with.
-3. Build your adapter.
+> npm install --save sails-sqlite3
 
-## How to test your adapter
-1. Run `npm link` in this adapter's directory
-2. Clone the sails.js core and modify the tests to use your new adapter.
-3. Run `npm link sails-boilerplate`
-4. From the sails.js core directory, run `npm test`.
+In your `config\datastores.js` file, add a property with your datastore name. Supported configuration:
 
-## Submitting your adapter
-1. Do a pull request to this repository (make sure you attribute yourself as the author set the license in the package.json to "MIT")  Please let us know about any special instructions for usage/testing.
-2. We'll run the tests one last time.  If there are any issues, we'll let you know.
-3. When it's ready, we'll update the documentation with information about your new adapter
-4. Then we'll tweet and post about it on our blog, adoring you with lavish praises.
-5. Mike will send you jelly beans.
+```js
+default: {
+  adapter: 'sails-sqlite3',
+  filename: '[YOUR DATABASE].db',
+  mode: AS PER sqlite3 MODE OPTIONS,
+  verbose: false
+}
+```
 
+For more information on the `mode` configuration property, see the [driver documentation](https://github.com/mapbox/node-sqlite3/wiki/API#new-sqlite3databasefilename-mode-callback)
+
+## Testing
+
+> npm test
+
+Currently only `waterline-adapter-tests` are hooked up. Passing interfaces:
+
+- semantic
+- queryable
+- associations
+- migratable
+
+## Acknowledgements
+This is a rewrite from a fork of the sails-sqlite3 adapter written for sailsjs < 1.0.0 originally by [Andrew Jo](https://github.com/AndrewJo). I borrowed most of the structure of the code and a lot of the sql querying from the original codebase.
 
 ## About Sails.js and Waterline
 http://SailsJs.com

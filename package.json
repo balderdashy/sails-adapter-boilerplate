@@ -1,38 +1,43 @@
 {
   "name": "sails-sqlite3",
-  "version": "0.0.1",
-  "description": "Boilerplate adapter for Sails.js",
-  "main": "index.js",
-  "scripts": {
-    "test": "make test"
-  },
+  "version": "0.1.0",
+  "description": "Waterline Adapter for SQLite in Sails.js",
+  "main": "lib/adapter.js",
   "repository": {
     "type": "git",
-    "url": "https://github.com/balderdashy/sails-adapter-boilerplate.git"
+    "url": "https://github.com/kcappieg/sails-sqlite3.git"
   },
   "keywords": [
     "orm",
     "waterline",
     "sails",
     "sailsjs",
-    "sails.js"
+    "sails.js",
+    "sqlite"
   ],
-  "author": "Andrew Jo <andrewjo@gmail.com>",
+  "contributors": [
+    {
+      "name": "Andrew Jo",
+      "email": "andrewjo@gmail.com>"
+    },
+    {
+      "name": "Kevin C. Gall",
+      "email": "kcg245@gmail.com"
+    }
+  ],
   "license": "MIT",
   "readmeFilename": "README.md",
   "dependencies": {
     "@sailshq/lodash": "^3.10.3",
     "sqlite3": "~4.0.x",
-    "underscore": "1.5.2",
     "waterline-errors": "^0.10.1"
   },
   "devDependencies": {
     "mocha": "^5.2.0",
-    "should": "*",
     "waterline-adapter-tests": "^1.0.1"
   },
   "scripts": {
-    "test": "node test/integration/runner.js"
+    "test": "node test/runner.js"
   },
   "sails": {
     "adapter": {

@@ -1,6 +1,6 @@
 var tests = require('waterline-adapter-tests'),
     sqlite3 = require('sqlite3'),
-    adapter = require('../../index'),
+    adapter = require('../lib/adapter'),
     mocha = require('mocha');
 
 /**
