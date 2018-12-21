@@ -170,7 +170,7 @@ const adapter = {
         );
       });
     } catch (err) {
-      done(err);
+      return done(err);
     }
 
     // To maintain the spirit of this repository, this implementation will
@@ -194,7 +194,7 @@ const adapter = {
         await wrapAsyncStatements(this.describe.bind(this, datastoreName, tableName));
       }
     } catch (err) {
-      done(err);
+      return done(err);
     }
 
     return done();
@@ -416,13 +416,62 @@ const adapter = {
       const _query = new Query(tableName, tableSchema, model);
       const updateQuery = _query.update(query.criteria, query.valuesToSet);
 
+      /* TODO: See below note and fix so that we do not query the db twice where unnecessary
+       * Note: The sqlite driver we're using does not return changed values
+       * on an update. If we are expected to fetch, we need to deterministically
+       * be able to fetch the exact records that we updated.
+       * We cannot simply query off the same criteria because it is possible
+       * (nay likely) that one of the criteria is based on a field that is
+       * changed in the update call. In most cases, acquiring the primary key
+       * value before the update and then re-querying that key after the update
+       * will be sufficient. However, it is possible to update the primary key
+       * itself. So we will construct 2 cases:
+       *  1: Query the primary key for all records that will be updated. Then
+       *    craft a new where object based on only those primary keys to
+       *    query again after the update executes
+       *  2: craft a new where object based on what the primary key is changing
+       *    to.
+       *
+       * Note that option 1 sucks. However, an analysis of the where criteria to
+       * determine the optimal *post-update* where criteria is more work than
+       * I have time to do, so option 1 it is.
+       */
+
+      let newQuery;
+      if (query.meta && query.meta.fetch) {
+        const pkCol = model.definition[model.primaryKey].columnName;
+        let newWhere = {};
+        newQuery = _.cloneDeep(query);
+        newQuery.criteria = newQuery.criteria || {};
+
+        if (query.valuesToSet[pkCol]) {
+          newWhere[pkCol] = query.valuesToSet[pkCol];
+        } else {
+          newQuery.criteria.select = [pkCol];
+
+          const rows = await wrapAsyncStatements(
+            adapter.find.bind(adapter, datastoreName, newQuery));
+
+          delete newQuery.criteria.select;
+
+          const inSet = {in: rows.map(row => row[pkCol])};
+          newWhere[pkCol] = inSet;
+        }
+
+        newQuery.criteria.where = newWhere;
+      }
+
       const statement = await wrapAsyncForThis(
         client.run.bind(client, updateQuery.query, updateQuery.values));
 
       let results;
-      if (statement.changes > 0 && query.meta && query.meta.fetch) {
-        results = await wrapAsyncStatements(
-          adapter.find.bind(adapter, datastoreName, query));
+      if (query.meta && query.meta.fetch) {
+        if (statement.changes === 0) {
+          results = [];
+        } else {
+          results = await wrapAsyncStatements(
+            adapter.find.bind(adapter, datastoreName, newQuery));
+        }
       }
 
       done(undefined, results);
@@ -534,8 +583,8 @@ const adapter = {
     const queryStatement = queryObj.find(query.criteria);
 
     try {
-      const values = [];
       await spawnReadonlyConnection(dsEntry, async function __FIND__(client) {
+        const values = [];
         let resultCount = await wrapAsyncStatements(
           client.each.bind(client, queryStatement.query, queryStatement.values, (err, row) => {
             if (err) throw err;
@@ -544,7 +593,7 @@ const adapter = {
           }));
 
         done(undefined, values);
-      })
+      });
     } catch (err) {
       done(err);
     }
@@ -614,7 +663,7 @@ const adapter = {
    *               @param {Number}  [the number of matching records]
    * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
    */
-  count: function (datastoreName, query, done) {
+  count: async function (datastoreName, query, done) {
 
     // Look up the datastore entry (manager/driver/config).
     var dsEntry = registeredDatastores[datastoreName];
@@ -624,15 +673,25 @@ const adapter = {
       return done(new Error('Consistency violation: Cannot do that with datastore (`'+datastoreName+'`) because no matching datastore entry is registered in this adapter!  This is usually due to a race condition (e.g. a lifecycle callback still running after the ORM has been torn down), or it could be due to a bug in this adapter.  (If you get stumped, reach out at https://sailsjs.com/support.)'));
     }
 
-    // Perform the query and send back a result.
-    //
-    // > TODO: Replace this setTimeout with real logic that calls
-    // > `done()` when finished. (Or remove this method from the
-    // > adapter altogether
-    setTimeout(function(){
-      return done(new Error('Adapter method (`count`) not implemented yet.'));
-    }, 16);
+    try {
+      const tableName = query.using;
+      const schema = dsEntry.manager.schema[tableName];
+      const model = dsEntry.manager.models[tableName];
 
+      const countQuery = new Query(tableName, schema, model);
+      const statement = countQuery.count(query.criteria, 'count_alias');
+
+      await spawnReadonlyConnection(dsEntry, async function __COUNT__(client) {
+        const row = await wrapAsyncStatements(
+          client.get.bind(client, statement.query, statement.values));
+
+        if (!row) throw new Error('No rows returned by count query?');
+
+        done(undefined, row.count_alias);
+      });
+    } catch(err) {
+      done(err);
+    }
   },
 
 
@@ -649,7 +708,7 @@ const adapter = {
    *               @param {Number}  [the sum]
    * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
    */
-  sum: function (datastoreName, query, done) {
+  sum: async function (datastoreName, query, done) {
 
     // Look up the datastore entry (manager/driver/config).
     var dsEntry = registeredDatastores[datastoreName];
@@ -659,14 +718,25 @@ const adapter = {
       return done(new Error('Consistency violation: Cannot do that with datastore (`'+datastoreName+'`) because no matching datastore entry is registered in this adapter!  This is usually due to a race condition (e.g. a lifecycle callback still running after the ORM has been torn down), or it could be due to a bug in this adapter.  (If you get stumped, reach out at https://sailsjs.com/support.)'));
     }
 
-    // Perform the query and send back a result.
-    //
-    // > TODO: Replace this setTimeout with real logic that calls
-    // > `done()` when finished. (Or remove this method from the
-    // > adapter altogether
-    setTimeout(function(){
-      return done(new Error('Adapter method (`sum`) not implemented yet.'));
-    }, 16);
+    try {
+      const tableName = query.using;
+      const schema = dsEntry.manager.schema[tableName];
+      const model = dsEntry.manager.models[tableName];
+
+      const sumQuery = new Query(tableName, schema, model);
+      const statement = sumQuery.sum(query.criteria, query.numericAttrName, 'sum_alias');
+
+      await spawnReadonlyConnection(dsEntry, async function __SUM__(client) {
+        const row = await wrapAsyncStatements(
+          client.get.bind(client, statement.query, statement.values));
+
+        if (!row) throw new Error('No rows returned by sum query?');
+
+        done(undefined, row.sum_alias);
+      });
+    } catch (err) {
+      done(err);
+    }
 
   },
 
@@ -684,7 +754,7 @@ const adapter = {
    *               @param {Number}  [the average ("mean")]
    * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
    */
-  avg: function (datastoreName, query, done) {
+  avg: async function (datastoreName, query, done) {
 
     // Look up the datastore entry (manager/driver/config).
     var dsEntry = registeredDatastores[datastoreName];
@@ -694,14 +764,25 @@ const adapter = {
       return done(new Error('Consistency violation: Cannot do that with datastore (`'+datastoreName+'`) because no matching datastore entry is registered in this adapter!  This is usually due to a race condition (e.g. a lifecycle callback still running after the ORM has been torn down), or it could be due to a bug in this adapter.  (If you get stumped, reach out at https://sailsjs.com/support.)'));
     }
 
-    // Perform the query and send back a result.
-    //
-    // > TODO: Replace this setTimeout with real logic that calls
-    // > `done()` when finished. (Or remove this method from the
-    // > adapter altogether
-    setTimeout(function(){
-      return done(new Error('Adapter method (`avg`) not implemented yet.'));
-    }, 16);
+    try {
+      const tableName = query.using;
+      const schema = dsEntry.manager.schema[tableName];
+      const model = dsEntry.manager.models[tableName];
+
+      const avgQuery = new Query(tableName, schema, model);
+      const statement = avgQuery.avg(query.criteria, query.numericAttrName, 'avg_alias');
+
+      await spawnReadonlyConnection(dsEntry, async function __AVG__(client) {
+        const row = await wrapAsyncStatements(
+          client.get.bind(client, statement.query, statement.values));
+
+        if (!row) throw new Error('No rows returned by avg query?');
+
+        done(undefined, row.avg_alias);
+      });
+    } catch (err) {
+      done(err);
+    }
 
   },
 
@@ -731,7 +812,7 @@ const adapter = {
     spawnReadonlyConnection(datastore, async function __DESCRIBE__(client) {
       // Get a list of all the tables in this database
       // See: http://www.sqlite.org/faq.html#q7)
-      var query = 'SELECT * FROM sqlite_master WHERE type="table" AND name="' + tableName + '" ORDER BY name';
+      var query = `SELECT * FROM sqlite_master WHERE type="table" AND name="${tableName}" ORDER BY name`;
 
       try {
         const schema = await wrapAsyncStatements(client.get.bind(client, query));
@@ -739,10 +820,10 @@ const adapter = {
 
         // Query to get information about each table
         // See: http://www.sqlite.org/pragma.html#pragma_table_info
-        var columnsQuery = "PRAGMA table_info(" + schema.name + ")";
+        var columnsQuery = `PRAGMA table_info("${schema.name}")`;
 
         // Query to get a list of indices for a given table
-        var indexListQuery = 'PRAGMA index_list("' + schema.name + '")';
+        var indexListQuery = `PRAGMA index_list("${schema.name}")`;
 
         schema.indices = [];
         schema.columns = [];
@@ -755,7 +836,7 @@ const adapter = {
           if (err) throw err;
           // Query to get information about indices
           var indexInfoQuery =
-            'PRAGMA index_info("' + currentIndex.name + '")';
+            `PRAGMA index_info("${currentIndex.name}")`;
 
           // Retrieve detailed information for given index
           client.each(indexInfoQuery, function (err, indexedCol) {
@@ -994,7 +1075,6 @@ function spawnReadonlyConnection(datastore, logic) {
   })
   .then(logic)
   .catch(err => {
-    console.error(err)
     return Promise.reject(err); //we want the user process to get this error as well
   })
   .finally(() => {
