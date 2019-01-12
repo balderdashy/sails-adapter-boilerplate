@@ -5,7 +5,7 @@
   "main": "lib/adapter.js",
   "repository": {
     "type": "git",
-    "url": "https://github.com/kcappieg/sails-sqlite3.git"
+    "url": "https://github.com/AndrewJo/sails-sqlite3.git"
   },
   "keywords": [
     "orm",
