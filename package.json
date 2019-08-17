@@ -29,11 +29,11 @@
   "readmeFilename": "README.md",
   "dependencies": {
     "@sailshq/lodash": "^3.10.3",
-    "sqlite3": "~4.0.x",
+    "sqlite3": "^4.1.0",
     "waterline-errors": "^0.10.1"
   },
   "devDependencies": {
-    "mocha": "^5.2.0",
+    "mocha": "^6.2.0",
     "waterline-adapter-tests": "^1.0.1"
   },
   "scripts": {
